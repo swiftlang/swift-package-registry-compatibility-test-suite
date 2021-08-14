@@ -1,0 +1,50 @@
+# docker-compose -f docker/docker-compose.yml -f docker/docker-compose.1804.54.yml run test-registry
+
+version: '3'
+
+services:
+
+  runtime-setup:
+    image: swift-package-registry-compat-test-suite:default
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+  postgres:
+    image: "postgres:13.3"
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=package_registry
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      
+  common: &common
+    image: swift-package-registry-compat-test-suite:default
+    depends_on: [runtime-setup]
+    volumes:
+      - ~/.ssh:/root/.ssh
+      - ..:/code:z
+    working_dir: /code
+    cap_drop:
+      - CAP_NET_RAW
+      - CAP_NET_BIND_SERVICE
+  
+  test-registry:
+    <<: *common
+    depends_on: [runtime-setup, postgres]
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DATABASE=package_registry
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    command: /bin/bash -cl "swift test --filter PackageRegistryTests"
+
+  soundness:
+    <<: *common
+    command: /bin/bash -xcl "./scripts/soundness.sh"
+    
+  shell:
+    <<: *common
+    entrypoint: /bin/bash
