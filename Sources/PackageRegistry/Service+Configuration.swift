@@ -19,6 +19,7 @@ import Logging
 extension PackageRegistry {
     struct Configuration: CustomStringConvertible {
         var app = App()
+        var postgres = Postgres()
         var api = API()
 
         struct App: CustomStringConvertible {
@@ -27,6 +28,19 @@ extension PackageRegistry {
 
             var description: String {
                 "App: logLevel: \(self.logLevel), metricsPort: \(self.metricsPort ?? -1)"
+            }
+        }
+
+        struct Postgres: PostgresDataAccess.Configuration, CustomStringConvertible {
+            var host = ProcessInfo.processInfo.environment["POSTGRES_HOST"] ?? "127.0.0.1"
+            var port = ProcessInfo.processInfo.environment["POSTGRES_PORT"].flatMap(Int.init) ?? 5432
+            var tls = ProcessInfo.processInfo.environment["POSTGRES_TLS"].flatMap(Bool.init) ?? false
+            var database = ProcessInfo.processInfo.environment["POSTGRES_DATABASE"] ?? "package_registry"
+            var username = ProcessInfo.processInfo.environment["POSTGRES_USER"] ?? "postgres"
+            var password = ProcessInfo.processInfo.environment["POSTGRES_PASSWORD"] ?? "postgres"
+
+            var description: String {
+                "[\(Postgres.self): host: \(self.host), port: \(self.port), tls: \(self.tls), database: \(self.database), username: \(self.username), password: *****]"
             }
         }
 
@@ -43,6 +57,7 @@ extension PackageRegistry {
         var description: String {
             """
             \(Configuration.self):
+              \(self.postgres)
               \(self.api)
             """
         }

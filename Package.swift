@@ -28,10 +28,23 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.0.0")),
         .package(url: "https://github.com/apple/swift-metrics.git", .upToNextMajor(from: "2.0.0")),
         .package(url: "https://github.com/apple/swift-statsd-client.git", .upToNextMajor(from: "1.0.0-alpha")),
+        .package(name: "SwiftPM", url: "https://github.com/apple/swift-package-manager.git", .branch("main")),
+        .package(url: "https://github.com/vapor/postgres-kit.git", .upToNextMajor(from: "2.3.0")),
         .package(url: "https://github.com/swift-server/async-http-client.git", .upToNextMajor(from: "1.3.0")),
     ],
     targets: [
+        .target(name: "DatabaseMigrations", dependencies: [
+            .product(name: "NIO", package: "swift-nio"),
+            .product(name: "Logging", package: "swift-log"),
+        ]),
+
+        .target(name: "PostgresMigrations", dependencies: [
+            "DatabaseMigrations",
+            .product(name: "PostgresKit", package: "postgres-kit"),
+        ]),
+
         .target(name: "PackageRegistry", dependencies: [
+            "PostgresMigrations",
             .product(name: "NIO", package: "swift-nio"),
             .product(name: "Vapor", package: "vapor"),
             .product(name: "Lifecycle", package: "swift-service-lifecycle"),
@@ -39,6 +52,8 @@ let package = Package(
             .product(name: "Logging", package: "swift-log"),
             .product(name: "Metrics", package: "swift-metrics"),
             .product(name: "StatsdClient", package: "swift-statsd-client"),
+            .product(name: "SwiftPMDataModel-auto", package: "SwiftPM"),
+            .product(name: "PostgresKit", package: "postgres-kit"),
         ]),
 
         .target(name: "PackageRegistryLauncher", dependencies: [

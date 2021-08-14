@@ -9,6 +9,9 @@ services:
         ubuntu_version: "bionic"
         swift_version: "5.4"
 
+  test:
+    image: swift-package-registry-compat-test-suite:18.04-5.4
+    
   test-registry:
     image: swift-package-registry-compat-test-suite:18.04-5.4
 

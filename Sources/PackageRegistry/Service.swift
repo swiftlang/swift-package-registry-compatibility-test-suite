@@ -35,6 +35,11 @@ public enum PackageRegistry {
         let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
         lifecycle.registerShutdown(label: "eventLoopGroup", .sync(eventLoopGroup.syncShutdownGracefully))
 
+        let dataAccess = PostgresDataAccess(eventLoopGroup: eventLoopGroup, configuration: configuration.postgres)
+        lifecycle.register(label: "dataAccess",
+                           start: .eventLoopFuture(dataAccess.migrate),
+                           shutdown: .sync(dataAccess.shutdown))
+
         let api = API(configuration: configuration)
         lifecycle.register(label: "api",
                            start: .sync(api.start),

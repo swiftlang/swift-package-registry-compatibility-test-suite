@@ -30,7 +30,7 @@ services:
       - CAP_NET_RAW
       - CAP_NET_BIND_SERVICE
   
-  test-registry:
+  test-common: &test-common
     <<: *common
     depends_on: [runtime-setup, postgres]
     environment:
@@ -39,6 +39,13 @@ services:
       - POSTGRES_DATABASE=package_registry
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
+
+  test:
+    <<: *test-common
+    command: /bin/bash -cl "swift test"
+    
+  test-registry:
+    <<: *test-common
     command: /bin/bash -cl "swift test --filter PackageRegistryTests"
 
   soundness:
