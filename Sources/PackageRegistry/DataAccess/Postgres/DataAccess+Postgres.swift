@@ -19,6 +19,14 @@ struct PostgresDataAccess: DataAccess {
 
     private let connectionPool: EventLoopGroupConnectionPool<PostgresConnectionSource>
 
+    private let _packageReleases: PackageReleasesDAO
+    private let _packageResources: PackageResourcesDAO
+    private let _packageManifests: PackageManifestsDAO
+
+    var packageReleases: PackageReleasesDAO { self._packageReleases }
+    var packageResources: PackageResourcesDAO { self._packageResources }
+    var packageManifests: PackageManifestsDAO { self._packageManifests }
+
     init(eventLoopGroup: EventLoopGroup, configuration config: PostgresDataAccessConfiguration) {
         let tls = config.tls ? TLSConfiguration.clientDefault : nil
         let configuration = PostgresConfiguration(hostname: config.host,
@@ -28,6 +36,10 @@ struct PostgresDataAccess: DataAccess {
                                                   database: config.database,
                                                   tlsConfiguration: tls)
         self.connectionPool = EventLoopGroupConnectionPool(source: PostgresConnectionSource(configuration: configuration), on: eventLoopGroup)
+
+        self._packageResources = PackageResources(self.connectionPool)
+        self._packageManifests = PackageManifests(self.connectionPool)
+        self._packageReleases = PackageReleases(self.connectionPool, packageResources: self._packageResources, packageManifests: self._packageManifests)
     }
 
     func migrate() async throws {

@@ -17,7 +17,10 @@ import PackageDescription
 let package = Package(
     name: "swift-package-registry-compatibility-test-suite",
     platforms: [.macOS("12.0")],
-    products: [],
+    products: [
+        .executable(name: "PackageRegistryLauncher", targets: ["PackageRegistryLauncher"]),
+        .executable(name: "package-registry", targets: ["PackageRegistryTool"]),
+    ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.30.0")),
         .package(url: "https://github.com/vapor/vapor.git", .upToNextMajor(from: "4.48.3")),
@@ -27,8 +30,11 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-metrics.git", .upToNextMajor(from: "2.0.0")),
         .package(url: "https://github.com/apple/swift-statsd-client.git", .upToNextMajor(from: "1.0.0-alpha")),
         .package(url: "https://github.com/apple/swift-package-manager.git", .branch("main")),
+        .package(url: "https://github.com/vapor/multipart-kit.git", .upToNextMajor(from: "4.2.1")),
         .package(url: "https://github.com/vapor/postgres-kit.git", .upToNextMajor(from: "2.3.0")),
         .package(url: "https://github.com/swift-server/async-http-client.git", .upToNextMajor(from: "1.3.0")),
+        .package(url: "https://github.com/apple/swift-atomics.git", .upToNextMajor(from: "0.0.3")),
+        .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "0.4.3")),
     ],
     targets: [
         .target(name: "DatabaseMigrations", dependencies: [
@@ -41,9 +47,12 @@ let package = Package(
             .product(name: "PostgresKit", package: "postgres-kit"),
         ]),
 
+        .target(name: "PackageRegistryModels", dependencies: []),
+
         .executableTarget(name: "PackageRegistry",
                           dependencies: [
                               "PostgresMigrations",
+                              "PackageRegistryModels",
                               .product(name: "NIO", package: "swift-nio"),
                               .product(name: "Vapor", package: "vapor"),
                               .product(name: "Lifecycle", package: "swift-service-lifecycle"),
@@ -53,15 +62,28 @@ let package = Package(
                               .product(name: "StatsdClient", package: "swift-statsd-client"),
                               .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
                               .product(name: "PostgresKit", package: "postgres-kit"),
+                              .product(name: "MultipartKit", package: "multipart-kit"),
                           ],
                           exclude: ["README.md"]),
+
+        .target(name: "PackageRegistryClient", dependencies: [
+            .product(name: "AsyncHTTPClient", package: "async-http-client"),
+            .product(name: "Atomics", package: "swift-atomics"),
+            .product(name: "Logging", package: "swift-log"),
+        ]),
+
+        .target(name: "PackageRegistryTool", dependencies: [
+            "PackageRegistryClient",
+            .product(name: "ArgumentParser", package: "swift-argument-parser"),
+        ]),
 
         .testTarget(name: "PostgresMigrationsTests", dependencies: [
             "PostgresMigrations",
         ]),
 
         .testTarget(name: "PackageRegistryTests", dependencies: [
-            .product(name: "AsyncHTTPClient", package: "async-http-client"),
+            "PackageRegistryModels",
+            "PackageRegistryClient",
         ]),
     ]
 )

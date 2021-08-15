@@ -12,6 +12,7 @@
 
 import Foundation
 
+import PackageRegistryModels
 import Vapor
 
 extension Response {
@@ -64,4 +65,8 @@ extension Encodable {
 enum JSONCodecError: Error {
     case unknownEncodingError
     case unknownDecodingError
+}
+
+struct APIVersionStorageKey: StorageKey {
+    typealias Value = PackageRegistry.APIVersion
 }

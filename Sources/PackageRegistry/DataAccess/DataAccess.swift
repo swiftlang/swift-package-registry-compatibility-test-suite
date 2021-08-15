@@ -10,6 +10,52 @@
 //
 //===----------------------------------------------------------------------===//
 
+import struct Foundation.Data
+
+import NIO
+import PackageModel
+import TSCUtility
+
 protocol DataAccess {
+    var packageReleases: PackageReleasesDAO { get }
+
+    var packageResources: PackageResourcesDAO { get }
+
+    var packageManifests: PackageManifestsDAO { get }
+
     func migrate() async throws
+}
+
+protocol PackageReleasesDAO {
+    func create(package: PackageIdentity,
+                version: Version,
+                repositoryURL: String?,
+                commitHash: String?,
+                checksum: String,
+                sourceArchive: Data,
+                manifests: [(SwiftLanguageVersion?, String, ToolsVersion, Data)]) -> EventLoopFuture<(PackageRegistryModel.PackageRelease, PackageRegistryModel.PackageResource, [PackageRegistryModel.PackageManifest])>
+
+    func get(package: PackageIdentity, version: Version) -> EventLoopFuture<PackageRegistryModel.PackageRelease>
+}
+
+protocol PackageResourcesDAO {
+    func create(package: PackageIdentity,
+                version: Version,
+                type: PackageRegistryModel.PackageResourceType,
+                checksum: String,
+                bytes: Data) -> EventLoopFuture<PackageRegistryModel.PackageResource>
+}
+
+protocol PackageManifestsDAO {
+    func create(package: PackageIdentity,
+                version: Version,
+                swiftVersion: SwiftLanguageVersion?,
+                filename: String,
+                swiftToolsVersion: ToolsVersion,
+                bytes: Data) -> EventLoopFuture<PackageRegistryModel.PackageManifest>
+}
+
+enum DataAccessError: Equatable, Error {
+    case notFound
+    case invalidData(detail: String)
 }

@@ -13,6 +13,27 @@ Features not implemented (and their corresponding section in the specification):
 
 ### API endpoints
 
+- Error response JSON is represented by `PackageRegistryModels.ProblemDetails`. (3.3)
+- Server responses, with the exception of `OPTIONS` requests ad  `204` and redirects (`3xx`) statuses, include `Content-Type` and `Content-Version` headers. (3.5)
+- Package scope and name are validated using SwiftPM's `PackageModel.PackageIdentity.Scope` (3.6.1) and `PackageModel.PackageIdentity.Name` (3.6.2). Case-insensitivity is done through lowercasing strings before comparison.
+- All `GET` endpoints support `HEAD` requests. (4)
+- All API paths support `OPTIONS` requests. (4)
+
+#### Create package release (`POST /{scope}/{name}/{version}`) (4.6) 
+
+This API is in proposal stage: [pitch](https://forums.swift.org/t/package-registry-service-publish-endpoint/51067)
+
+- Package `scope` and `name` are validated according to section 3.6 of the specification. 
+- The source archive being published must be generated using the `package archive-source` command.
+- `PackageRegistryModels.PackageReleaseMetadata` is the only metadata model supported by this server implementation. 
+- Refer to the API specification or `PackageRegistryClient`'s source code for the request body format. Note the `\r`s and the terminating boundary line (i.e., `--boundary--\r\n`). The `metadata` part is required. Send `{}` if there is no metadata.
+- The `PackageRegistryTool` module provides a CLI tool for interacting with a package registry. 
+- The server executes `swift package compute-checksum` to compute the checksum. Manifest(s) are extracted and saved to the database as part of publication.
+- The server does not take special actions on the `Expect: 100-continue` HTTP header. In other words, the server never returns HTTP status `417` even if it doesn't support `Expect`.
+- For simplicity, only synchronous publication is supported (i.e., the server returns status `201` on successful publication). The `Prefer` HTTP header, if present in the request, is ignored.
+- A published package release cannot be modified.
+- If the package release already exists, the server returns HTTP status `409`.
+
 ### Database schema
 
 There are primarily three tables in the Postgres database, all populated via the "create package release" API.

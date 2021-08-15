@@ -53,8 +53,25 @@ enum PackageRegistryModel {
 
 // TODO: Use SwiftPM's PackageIdentity when it supports scope and name
 struct PackageIdentity: CustomStringConvertible {
+    /// 3.6.1 Package scope
     let scope: PackageModel.PackageIdentity.Scope
+    /// 3.6.2 Package name
     let name: PackageModel.PackageIdentity.Name
+
+    init?(scope: String, name: String) {
+        guard let scope = PackageModel.PackageIdentity.Scope(scope) else {
+            return nil
+        }
+        guard let name = PackageModel.PackageIdentity.Name(name) else {
+            return nil
+        }
+        self.init(scope: scope, name: name)
+    }
+
+    init(scope: PackageModel.PackageIdentity.Scope, name: PackageModel.PackageIdentity.Name) {
+        self.scope = scope
+        self.name = name
+    }
 
     var description: String {
         "\(self.scope).\(self.name)"

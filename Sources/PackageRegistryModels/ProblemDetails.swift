@@ -12,8 +12,8 @@
 
 import Foundation
 
-/// 3.3. Error handling
-/// A server SHOULD communicate any errors to the client using "problem details" objects, as described by [RFC 7807](https://tools.ietf.org/html/rfc7807).
+/// 3.3. Error handling - a server SHOULD communicate any errors to the client using "problem details" objects,
+/// as described by [RFC 7807](https://tools.ietf.org/html/rfc7807).
 public struct ProblemDetails: Codable {
     public let status: UInt?
     public let title: String?
