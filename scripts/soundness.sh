@@ -1,15 +1,13 @@
 #!/bin/bash
 ##===----------------------------------------------------------------------===##
 ##
-## This source file is part of the SwiftPackageRegistryCompatibilityTestSuite open source project
+## This source file is part of the Swift.org open source project
 ##
-## Copyright (c) 2021 Apple Inc. and the SwiftPackageRegistryCompatibilityTestSuite project authors
-## Licensed under Apache License v2.0
+## Copyright (c) 2021 Apple Inc. and the Swift project authors
+## Licensed under Apache License v2.0 with Runtime Library Exception
 ##
-## See LICENSE.txt for license information
-## See CONTRIBUTORS.txt for the list of SwiftPackageRegistryCompatibilityTestSuite project authors
-##
-## SPDX-License-Identifier: Apache-2.0
+## See https://swift.org/LICENSE.txt for license information
+## See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 ##
 ##===----------------------------------------------------------------------===##
 
@@ -32,11 +30,9 @@ unacceptable_terms=(
     -e sanit[y]
 )
 
-# We have to exclude the code of conduct as it gives examples of unacceptable
-# language.
-if git grep --color=never -i "${unacceptable_terms[@]}" -- . ":(exclude)CODE_OF_CONDUCT.md" > /dev/null; then
+if git grep --color=never -i "${unacceptable_terms[@]}" -- . > /dev/null; then
     printf "\033[0;31mUnacceptable language found.\033[0m\n"
-    git grep -i "${unacceptable_terms[@]}" -- . ":(exclude)CODE_OF_CONDUCT.md"
+    git grep -i "${unacceptable_terms[@]}" -- .
     exit 1
 fi
 printf "\033[0;32mokay.\033[0m\n"
@@ -73,15 +69,13 @@ for language in swift-or-c bash dtrace; do
         cat > "$tmp" <<"EOF"
 //===----------------------------------------------------------------------===//
 //
-// This source file is part of the SwiftPackageRegistryCompatibilityTestSuite open source project
+// This source file is part of the Swift.org open source project
 //
-// Copyright (c) YEARS Apple Inc. and the SwiftPackageRegistryCompatibilityTestSuite project authors
-// Licensed under Apache License v2.0
+// Copyright (c) YEARS Apple Inc. and the Swift project authors
+// Licensed under Apache License v2.0 with Runtime Library Exception
 //
-// See LICENSE.txt for license information
-// See CONTRIBUTORS.txt for the list of SwiftPackageRegistryCompatibilityTestSuite project authors
-//
-// SPDX-License-Identifier: Apache-2.0
+// See https://swift.org/LICENSE.txt for license information
+// See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
 EOF
@@ -92,15 +86,13 @@ EOF
 #!/bin/bash
 ##===----------------------------------------------------------------------===##
 ##
-## This source file is part of the SwiftPackageRegistryCompatibilityTestSuite open source project
+## This source file is part of the Swift.org open source project
 ##
-## Copyright (c) YEARS Apple Inc. and the SwiftPackageRegistryCompatibilityTestSuite project authors
-## Licensed under Apache License v2.0
+## Copyright (c) YEARS Apple Inc. and the Swift project authors
+## Licensed under Apache License v2.0 with Runtime Library Exception
 ##
-## See LICENSE.txt for license information
-## See CONTRIBUTORS.txt for the list of SwiftPackageRegistryCompatibilityTestSuite project authors
-##
-## SPDX-License-Identifier: Apache-2.0
+## See https://swift.org/LICENSE.txt for license information
+## See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 ##
 ##===----------------------------------------------------------------------===##
 EOF
@@ -111,15 +103,13 @@ EOF
 #!/usr/sbin/dtrace -q -s
 /*===----------------------------------------------------------------------===*
  *
- *  This source file is part of the SwiftPackageRegistryCompatibilityTestSuite open source project
+ * This source file is part of the Swift.org open source project
  *
- *  Copyright (c) YEARS Apple Inc. and the SwiftPackageRegistryCompatibilityTestSuite project authors
- *  Licensed under Apache License v2.0
+ * Copyright (c) YEARS Apple Inc. and the Swift project authors
+ * Licensed under Apache License v2.0 with Runtime Library Exception
  *
- *  See LICENSE.txt for license information
- *  See CONTRIBUTORS.txt for the list of SwiftPackageRegistryCompatibilityTestSuite project authors
- *
- *  SPDX-License-Identifier: Apache-2.0
+ * See https://swift.org/LICENSE.txt for license information
+ * See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
  *
  *===----------------------------------------------------------------------===*/
 EOF

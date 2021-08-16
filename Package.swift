@@ -1,15 +1,14 @@
 // swift-tools-version:5.2
+
 //===----------------------------------------------------------------------===//
 //
-// This source file is part of the SwiftPackageRegistryCompatibilityTestSuite open source project
+// This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2021 Apple Inc. and the SwiftPackageRegistryCompatibilityTestSuite project authors
-// Licensed under Apache License v2.0
+// Copyright (c) 2021 Apple Inc. and the Swift project authors
+// Licensed under Apache License v2.0 with Runtime Library Exception
 //
-// See LICENSE.txt for license information
-// See CONTRIBUTORS.txt for the list of SwiftPackageRegistryCompatibilityTestSuite project authors
-//
-// SPDX-License-Identifier: Apache-2.0
+// See https://swift.org/LICENSE.txt for license information
+// See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
 

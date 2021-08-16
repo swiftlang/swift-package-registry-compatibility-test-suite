@@ -1,3 +1,3 @@
 # Code of Conduct
 
-See [https://swift.org/code-of-conduct/](https://swift.org/code-of-conduct/).
+See [the Swift project's Code of Conduct](https://swift.org/code-of-conduct/).
