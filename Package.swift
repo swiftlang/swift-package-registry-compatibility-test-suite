@@ -56,6 +56,10 @@ let package = Package(
                           ],
                           exclude: ["README.md"]),
 
+        .testTarget(name: "PostgresMigrationsTests", dependencies: [
+            "PostgresMigrations",
+        ]),
+
         .testTarget(name: "PackageRegistryTests", dependencies: [
             .product(name: "AsyncHTTPClient", package: "async-http-client"),
         ]),

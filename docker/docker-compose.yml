@@ -53,6 +53,11 @@ services:
     links:
       - api
     environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DATABASE=package_registry
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
       - API_SERVER_HOST=api
       - API_SERVER_PORT=9229
 
