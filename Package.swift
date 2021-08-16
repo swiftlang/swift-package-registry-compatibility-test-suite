@@ -1,4 +1,4 @@
-// swift-tools-version:5.2
+// swift-tools-version:5.4
 
 //===----------------------------------------------------------------------===//
 //
@@ -17,9 +17,7 @@ import PackageDescription
 let package = Package(
     name: "swift-package-registry-compatibility-test-suite",
     platforms: [.macOS("11.0")],
-    products: [
-        .executable(name: "PackageRegistryLauncher", targets: ["PackageRegistryLauncher"]),
-    ],
+    products: [],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.30.0")),
         .package(url: "https://github.com/vapor/vapor.git", .upToNextMajor(from: "4.48.3")),
@@ -42,25 +40,22 @@ let package = Package(
             .product(name: "PostgresKit", package: "postgres-kit"),
         ]),
 
-        .target(name: "PackageRegistry", dependencies: [
-            "PostgresMigrations",
-            .product(name: "NIO", package: "swift-nio"),
-            .product(name: "Vapor", package: "vapor"),
-            .product(name: "Lifecycle", package: "swift-service-lifecycle"),
-            .product(name: "LifecycleNIOCompat", package: "swift-service-lifecycle"),
-            .product(name: "Logging", package: "swift-log"),
-            .product(name: "Metrics", package: "swift-metrics"),
-            .product(name: "StatsdClient", package: "swift-statsd-client"),
-            .product(name: "SwiftPMDataModel-auto", package: "SwiftPM"),
-            .product(name: "PostgresKit", package: "postgres-kit"),
-        ]),
-
-        .target(name: "PackageRegistryLauncher", dependencies: [
-            "PackageRegistry",
-        ]),
+        .executableTarget(name: "PackageRegistry",
+                          dependencies: [
+                              "PostgresMigrations",
+                              .product(name: "NIO", package: "swift-nio"),
+                              .product(name: "Vapor", package: "vapor"),
+                              .product(name: "Lifecycle", package: "swift-service-lifecycle"),
+                              .product(name: "LifecycleNIOCompat", package: "swift-service-lifecycle"),
+                              .product(name: "Logging", package: "swift-log"),
+                              .product(name: "Metrics", package: "swift-metrics"),
+                              .product(name: "StatsdClient", package: "swift-statsd-client"),
+                              .product(name: "SwiftPMDataModel-auto", package: "SwiftPM"),
+                              .product(name: "PostgresKit", package: "postgres-kit"),
+                          ],
+                          exclude: ["README.md"]),
 
         .testTarget(name: "PackageRegistryTests", dependencies: [
-            "PackageRegistry",
             .product(name: "AsyncHTTPClient", package: "async-http-client"),
         ]),
     ]

@@ -17,8 +17,9 @@ import Metrics
 import NIO
 import StatsdClient
 
-public enum PackageRegistry {
-    public static func main() {
+@main
+enum PackageRegistry {
+    static func main() {
         let configuration = Configuration()
         LoggingSystem.bootstrap { label in
             var logger = StreamLogHandler.standardOutput(label: label)
