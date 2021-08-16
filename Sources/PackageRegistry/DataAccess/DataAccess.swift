@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
-
 protocol DataAccess {
-    func migrate() -> EventLoopFuture<Void>
+    func migrate() async throws
 }

@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import _NIOConcurrency // async/await bridge
 @_exported import DatabaseMigrations
-import NIO
 import PostgresKit
 
 extension DatabaseMigrations {
@@ -33,11 +33,10 @@ extension DatabaseMigrations {
         /// Applies the  `migrations` on the `eventLoopGroup` .
         ///
         /// - parameters:
-        ///    - on: `EventLoopGroup` to run the migrations on.
         ///    - migrations: collection of `DatabaseMigrations.Entry`.
         ///    - to: maximum version of migrations to run.
-        public func apply(on eventLoopGroup: EventLoopGroup, migrations: [DatabaseMigrations.Entry], to version: UInt32 = UInt32.max) -> EventLoopFuture<Int> {
-            DatabaseMigrations.apply(on: eventLoopGroup, handler: self.handler, migrations: migrations, to: version)
+        public func apply(migrations: [DatabaseMigrations.Entry], to version: UInt32 = UInt32.max) async throws -> Int {
+            try await DatabaseMigrations.apply(handler: self.handler, migrations: migrations, to: version)
         }
     }
 
@@ -48,33 +47,33 @@ extension DatabaseMigrations {
             self.connectionPool = connectionPool
         }
 
-        func needsBootstrapping() -> EventLoopFuture<Bool> {
-            self.connectionPool.withConnection { connection in
+        func needsBootstrapping() async throws -> Bool {
+            try await self.connectionPool.withConnection { connection in
                 connection.simpleQuery("select to_regclass('\(SchemaVersion.tableName)');")
             }.map { rows in
                 rows.first.flatMap { $0.column("to_regclass")?.value } == nil
-            }
+            }.get()
         }
 
-        func bootstrap() -> EventLoopFuture<Void> {
-            self.connectionPool.withConnection { connection in
+        func bootstrap() async throws {
+            try await self.connectionPool.withConnection { connection in
                 connection.simpleQuery("create table \(SchemaVersion.tableName) (version bigint);")
-            }.map { _ in () }
+            }.map { _ in () }.get()
         }
 
-        func versions() -> EventLoopFuture<[UInt32]> {
-            self.connectionPool.withConnection { connection in
+        func versions() async throws -> [UInt32] {
+            try await self.connectionPool.withConnection { connection in
                 connection.select()
                     .column("version")
                     .from(SchemaVersion.tableName)
                     .all(decoding: SchemaVersion.self)
                     // cast is safe since data is entered as UInt32
                     .map { $0.map { UInt32($0.version) } }
-            }
+            }.get()
         }
 
-        func apply(version: UInt32, statement: String) -> EventLoopFuture<Void> {
-            self.connectionPool.withConnection { connection in
+        func apply(version: UInt32, statement: String) async throws {
+            try await self.connectionPool.withConnection { connection -> EventLoopFuture<Void> in
                 connection.simpleQuery(statement).flatMap { _ in
                     do {
                         return try connection
@@ -86,7 +85,7 @@ extension DatabaseMigrations {
                         return connection.eventLoop.makeFailedFuture(error)
                     }
                 }
-            }
+            }.get()
         }
 
         private struct SchemaVersion: Codable {

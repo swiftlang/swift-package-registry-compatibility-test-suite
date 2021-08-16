@@ -16,12 +16,13 @@ import PackageDescription
 
 let package = Package(
     name: "swift-package-registry-compatibility-test-suite",
-    platforms: [.macOS("11.0")],
+    platforms: [.macOS("12.0")],
     products: [],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.30.0")),
         .package(url: "https://github.com/vapor/vapor.git", .upToNextMajor(from: "4.48.3")),
-        .package(url: "https://github.com/swift-server/swift-service-lifecycle.git", .upToNextMinor(from: "1.0.0-alpha")),
+        // TODO: pin to release with async/await support
+        .package(url: "https://github.com/swift-server/swift-service-lifecycle.git", .branch("main")),
         .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.0.0")),
         .package(url: "https://github.com/apple/swift-metrics.git", .upToNextMajor(from: "2.0.0")),
         .package(url: "https://github.com/apple/swift-statsd-client.git", .upToNextMajor(from: "1.0.0-alpha")),
@@ -31,12 +32,12 @@ let package = Package(
     ],
     targets: [
         .target(name: "DatabaseMigrations", dependencies: [
-            .product(name: "NIO", package: "swift-nio"),
             .product(name: "Logging", package: "swift-log"),
         ]),
 
         .target(name: "PostgresMigrations", dependencies: [
             "DatabaseMigrations",
+            .product(name: "_NIOConcurrency", package: "swift-nio"), // async/await bridge
             .product(name: "PostgresKit", package: "postgres-kit"),
         ]),
 

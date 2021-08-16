@@ -10,12 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import NIO
 import PostgresMigrations
 
 extension DatabaseMigrations.Postgres {
-    func apply(on eventLoopGroup: EventLoopGroup) -> EventLoopFuture<Int> {
-        self.apply(on: eventLoopGroup, migrations: DatabaseMigrations.Postgres.all)
+    func apply() async throws -> Int {
+        try await self.apply(migrations: DatabaseMigrations.Postgres.all)
     }
 
     private static let all: [DatabaseMigrations.Entry] = [

@@ -30,8 +30,8 @@ struct PostgresDataAccess: DataAccess {
         self.connectionPool = EventLoopGroupConnectionPool(source: PostgresConnectionSource(configuration: configuration), on: eventLoopGroup)
     }
 
-    func migrate() -> EventLoopFuture<Void> {
-        DatabaseMigrations.Postgres(self.connectionPool).apply(on: self.connectionPool.eventLoopGroup).map { _ in () }
+    func migrate() async throws {
+        _ = try await DatabaseMigrations.Postgres(self.connectionPool).apply()
     }
 
     func shutdown() {

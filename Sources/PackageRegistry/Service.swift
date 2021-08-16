@@ -36,7 +36,7 @@ enum PackageRegistry {
 
         let dataAccess = PostgresDataAccess(eventLoopGroup: eventLoopGroup, configuration: configuration.postgres)
         lifecycle.register(label: "dataAccess",
-                           start: .eventLoopFuture(dataAccess.migrate),
+                           start: .async(dataAccess.migrate),
                            shutdown: .sync(dataAccess.shutdown))
 
         let api = API(configuration: configuration)
