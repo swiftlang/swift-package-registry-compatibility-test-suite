@@ -1,4 +1,4 @@
-# docker-compose -f docker/docker-compose.yml -f docker/docker-compose.1804.54.yml run test-registry
+# docker-compose -f docker/docker-compose.yml -f docker/docker-compose.2004.55.yml run test
 
 version: '3'
 
