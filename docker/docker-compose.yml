@@ -1,0 +1,96 @@
+# docker-compose -f docker/docker-compose.yml -f docker/docker-compose.2004.55.yml run test
+
+version: '3'
+
+services:
+
+  runtime-setup:
+    image: swift-package-registry-compat-test-suite:default
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+  postgres:
+    image: "postgres:13.3"
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=package_registry
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      
+  common: &common
+    image: swift-package-registry-compat-test-suite:default
+    depends_on: [runtime-setup]
+    volumes:
+      - ~/.ssh:/root/.ssh
+      - ..:/code:z
+    working_dir: /code
+      
+  api:
+    <<: *common
+    depends_on: [runtime-setup, postgres]
+    links:
+      - postgres
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DATABASE=package_registry
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "9229:9229"
+    command: /bin/bash -cl "API_SERVER_HOST=0.0.0.0 API_SERVER_PORT=9229 swift run PackageRegistry"
+      
+  build:
+    <<: *common
+    depends_on: [runtime-setup]
+    command: /bin/bash -cl "swift build"
+    
+  test-common: &test-common
+    <<: *common
+    depends_on: [api]
+    links:
+      - api
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DATABASE=package_registry
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - API_SERVER_HOST=api
+      - API_SERVER_PORT=9229
+
+  test:
+    <<: *test-common
+    command: >
+      /bin/bash -xcl "
+        while ! nc -z api 9229;
+        do
+          echo Waiting for API server...;
+        sleep 3;
+        done;
+
+        swift test
+      "
+    
+  test-registry:
+    <<: *test-common
+    command: >
+      /bin/bash -xcl "
+        while ! nc -z api 9229;
+        do
+          echo Waiting for API server...;
+        sleep 3;
+        done;
+
+        swift test --filter PackageRegistryTests
+      "
+
+  soundness:
+    <<: *common
+    command: /bin/bash -xcl "./scripts/soundness.sh"
+    
+  shell:
+    <<: *common
+    entrypoint: /bin/bash

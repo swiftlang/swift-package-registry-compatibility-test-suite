@@ -1,0 +1,27 @@
+version: "3"
+
+services:
+
+  runtime-setup:
+    image: swift-package-registry-compat-test-suite:20.04-5.5
+    build:
+      args:
+        base_image: "swiftlang/swift:nightly-5.5-focal"
+
+  api:
+    image: swift-package-registry-compat-test-suite:20.04-5.5
+
+  build:
+    image: swift-package-registry-compat-test-suite:20.04-5.5
+    
+  test:
+    image: swift-package-registry-compat-test-suite:20.04-5.5
+
+  test-registry:
+    image: swift-package-registry-compat-test-suite:20.04-5.5
+    
+  soundness:
+    image: swift-package-registry-compat-test-suite:20.04-5.5
+
+  shell:
+    image: swift-package-registry-compat-test-suite:20.04-5.5
