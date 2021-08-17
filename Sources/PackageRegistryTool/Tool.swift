@@ -18,6 +18,7 @@ import NIO
 import NIOHTTP1
 import PackageRegistryClient
 
+@main
 struct PackageRegistryTool: ParsableCommand {
     static var configuration = CommandConfiguration(
         commandName: "package-registry",
@@ -91,5 +92,3 @@ struct PackageRegistryTool: ParsableCommand {
         }
     }
 }
-
-PackageRegistryTool.main()

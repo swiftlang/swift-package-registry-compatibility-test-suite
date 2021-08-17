@@ -14,7 +14,7 @@ Features not implemented (and their corresponding section in the specification):
 ### API endpoints
 
 - Error response JSON is represented by `PackageRegistryModels.ProblemDetails`. (3.3)
-- Server responses, with the exception of `OPTIONS` requests ad  `204` and redirects (`3xx`) statuses, include `Content-Type` and `Content-Version` headers. (3.5)
+- Server responses, with the exception of `OPTIONS` requests and `204` and redirects (`3xx`) statuses, include `Content-Type` and `Content-Version` headers. (3.5)
 - Package scope and name are validated using SwiftPM's `PackageModel.PackageIdentity.Scope` (3.6.1) and `PackageModel.PackageIdentity.Name` (3.6.2). Case-insensitivity is done through lowercasing strings before comparison.
 - All `GET` endpoints support `HEAD` requests. (4)
 - All API paths support `OPTIONS` requests. (4)

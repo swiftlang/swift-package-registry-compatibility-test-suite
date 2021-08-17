@@ -1,4 +1,4 @@
-// swift-tools-version:5.4
+// swift-tools-version:5.5
 
 //===----------------------------------------------------------------------===//
 //
@@ -17,9 +17,7 @@ import PackageDescription
 let package = Package(
     name: "swift-package-registry-compatibility-test-suite",
     platforms: [.macOS("12.0")],
-    products: [
-        .executable(name: "package-registry", targets: ["PackageRegistryTool"]),
-    ],
+    products: [],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.30.0")),
         .package(url: "https://github.com/vapor/vapor.git", .upToNextMajor(from: "4.48.3")),
