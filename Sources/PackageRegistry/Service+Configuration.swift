@@ -13,6 +13,7 @@
 import Foundation
 
 import Logging
+import Vapor
 
 extension PackageRegistry {
     struct Configuration: CustomStringConvertible {
@@ -45,10 +46,24 @@ extension PackageRegistry {
         struct API: CustomStringConvertible {
             var host = ProcessInfo.processInfo.environment["API_SERVER_HOST"] ?? "127.0.0.1"
             var port = ProcessInfo.processInfo.environment["API_SERVER_PORT"].flatMap(Int.init) ?? 9229
-            var corsDomains = (ProcessInfo.processInfo.environment["API_SERVER_CORS_DOMAINS"] ?? "*").split(separator: ",").map(String.init)
+            var cors = CORS()
 
             var description: String {
-                "[\(API.self): host: \(self.host), port: \(self.port), corsDomains: \(self.corsDomains)]"
+                "[\(API.self): host: \(self.host), port: \(self.port), cors: \(self.cors)]"
+            }
+
+            struct CORS: CustomStringConvertible {
+                var domains = (ProcessInfo.processInfo.environment["API_SERVER_CORS_DOMAINS"] ?? "*").split(separator: ",").map(String.init)
+                var allowedMethods: [HTTPMethod] = ProcessInfo.processInfo.environment["API_SERVER_CORS_METHODS"]?.split(separator: ",").map { .RAW(value: String($0)) } ??
+                    [.OPTIONS, .GET, .POST, .PUT, .PATCH, .DELETE]
+                var allowedHeaders: [HTTPHeaders.Name] = ProcessInfo.processInfo.environment["API_SERVER_CORS_HEADERS"]?.split(separator: ",").map { .init(String($0)) } ??
+                    [.accept, .acceptLanguage, .contentType, .contentLanguage, .contentLength,
+                     .origin, .userAgent, .accessControlAllowOrigin, .accessControlAllowHeaders]
+                var allowCredentials = ProcessInfo.processInfo.environment["API_SERVER_CORS_CREDENTIALS"].flatMap(Bool.init) ?? true
+
+                var description: String {
+                    "[\(CORS.self): domains: \(self.domains), allowedMethods: \(self.allowedMethods), allowedHeaders: \(self.allowedHeaders), allowCredentials: \(self.allowCredentials)]"
+                }
             }
         }
 

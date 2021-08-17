@@ -32,7 +32,7 @@ extension PackageRegistry {
             self.vapor.http.server.configuration.port = configuration.api.port
 
             // Middlewares
-            self.vapor.middleware.use(CORSMiddleware.make(for: configuration.api.corsDomains), at: .beginning)
+            self.vapor.middleware.use(CORSMiddleware.make(for: configuration.api.cors), at: .beginning)
             self.vapor.middleware.use(API.errorMiddleware)
 
             // Basic routes
@@ -77,16 +77,12 @@ extension PackageRegistry.API {
 // MARK: - CORS middleware
 
 enum CORSMiddleware {
-    static func make(for domains: [String]) -> Middleware {
+    static func make(for configuration: PackageRegistry.Configuration.API.CORS) -> Middleware {
         Vapor.CORSMiddleware(configuration: .init(
-            // Ideally this logic would be done in Vapor when passing * and allowCredentials = true
-            allowedOrigin: domains.first == "*" ? .originBased : .custom(domains.joined(separator: ",")),
-            allowedMethods: [.OPTIONS, .GET, .POST, .PUT, .PATCH, .DELETE],
-            allowedHeaders: [.accept, .acceptLanguage,
-                             .contentType, .contentLanguage, .contentLength,
-                             .origin, .userAgent,
-                             .accessControlAllowOrigin, .accessControlAllowHeaders],
-            allowCredentials: true
+            allowedOrigin: configuration.domains.first == "*" ? .originBased : .custom(configuration.domains.joined(separator: ",")),
+            allowedMethods: configuration.allowedMethods,
+            allowedHeaders: configuration.allowedHeaders,
+            allowCredentials: configuration.allowCredentials
         ))
     }
 }
