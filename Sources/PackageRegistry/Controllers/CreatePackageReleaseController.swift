@@ -12,6 +12,7 @@
 
 import struct Foundation.Data
 
+import _NIOConcurrency
 import MultipartKit
 import NIO
 import NIOHTTP1
@@ -22,6 +23,8 @@ import TSCUtility
 import Vapor
 
 struct CreatePackageReleaseController {
+    private typealias Manifest = (SwiftLanguageVersion?, String, ToolsVersion, Data)
+
     private let configuration: PackageRegistry.Configuration
     private let packageReleases: PackageReleasesDAO
 
@@ -65,113 +68,120 @@ struct CreatePackageReleaseController {
         guard let version = Version(versionString) else {
             throw PackageRegistry.APIError.badRequest("Invalid version: '\(versionString)'")
         }
+
         guard let requestBody = request.body.string else {
             throw PackageRegistry.APIError.badRequest("Missing request body")
         }
 
         let package = PackageIdentity(scope: scope, name: name)
 
-        return first(for: request) {
-            // Check if release exists
-            self.packageReleases.get(package: package, version: version)
-        }.flatMapAlways { result in
-            switch result {
-            case .success:
+        let promise = request.eventLoop.makePromise(of: Response.self)
+        Task.detached { () -> Void in
+            do {
+                _ = try await self.packageReleases.get(package: package, version: version)
                 // A release already exists! Return 409 (4.6)
-                return request.eventLoop.makeSucceededFuture(Response.jsonError(status: .conflict, detail: "\(package)@\(version) already exists"))
-            case .failure(let error):
-                guard DataAccessError.notFound == error as? DataAccessError else {
-                    return request.eventLoop.makeFailedFuture(error)
-                }
-
-                // Release doesn't exist yet. Proceed.
-                let publishRequest: CreatePackageReleaseRequest
+                promise.succeed(Response.jsonError(status: .conflict, detail: "\(package)@\(version) already exists"))
+            } catch DataAccessError.notFound {
                 do {
-                    publishRequest = try FormDataDecoder().decode(CreatePackageReleaseRequest.self, from: requestBody, boundary: "boundary")
-                } catch {
-                    return request.eventLoop.makeFailedFuture(error)
-                }
+                    // Release doesn't exist yet. Proceed.
+                    let createRequest = try FormDataDecoder().decode(CreatePackageReleaseRequest.self, from: requestBody, boundary: "boundary")
 
-                let metadata = publishRequest.metadata
-                guard let archiveData = publishRequest.sourceArchive else {
-                    return request.eventLoop.makeFailedFuture(PackageRegistry.APIError.badRequest("Source archive is either missing or invalid"))
-                }
+                    guard let archiveData = createRequest.sourceArchive else {
+                        return promise.fail(PackageRegistry.APIError.badRequest("Source archive is either missing or invalid"))
+                    }
+                    let metadata = createRequest.metadata
 
-                return request.eventLoop.flatSubmit {
-                    do {
-                        return try withTemporaryDirectory(removeTreeOnDeinit: false) { directoryPath in
-                            // Write the source archive to temp file
-                            let archivePath = directoryPath.appending(component: "package.zip")
-                            try self.fileSystem.writeFileContents(archivePath, bytes: ByteString(Array(archiveData)))
-
-                            // Run `swift package compute-checksum` tool
-                            let checksum = try Process.checkNonZeroExit(arguments: ["swift", "package", "compute-checksum", archivePath.pathString])
-                                .trimmingCharacters(in: .whitespacesAndNewlines)
-
-                            let packagePath = directoryPath.appending(component: "package")
-                            try self.fileSystem.createDirectory(packagePath, recursive: true)
-
-                            // Unzip the source archive
-                            let responsePromise = request.eventLoop.makePromise(of: Response.self)
-                            self.archiver.extract(from: archivePath, to: packagePath) { result in
+                    // Analyze the source archive
+                    let (checksum, manifests) = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(String, [Manifest]), Error>) in
+                        do {
+                            try self.processSourceArchive(archiveData) { result in
                                 switch result {
-                                case .success:
-                                    // Find manifests
-                                    let manifests: [(SwiftLanguageVersion?, String, ToolsVersion, Data)]
-                                    do {
-                                        manifests = try self.getManifests(packagePath)
-                                        // Package.swift is required
-                                        guard manifests.first(where: { $0.0 == nil }) != nil else {
-                                            return responsePromise.fail(PackageRegistry.APIError.badRequest("Package.swift is missing or invalid in the source archive"))
-                                        }
-                                    } catch {
-                                        return responsePromise.fail(error)
-                                    }
-
-                                    first(for: request) {
-                                        packageReleases.create(
-                                            package: package,
-                                            version: version,
-                                            repositoryURL: metadata?.repositoryURL,
-                                            commitHash: metadata?.commitHash,
-                                            checksum: checksum,
-                                            sourceArchive: archiveData,
-                                            manifests: manifests
-                                        )
-                                    }.flatMapThrowing { _ in
-                                        let response = CreatePackageReleaseResponse(
-                                            scope: scope.description,
-                                            name: name.description,
-                                            version: version.description,
-                                            metadata: metadata,
-                                            checksum: checksum
-                                        )
-
-                                        let location = "\(self.configuration.api.baseURL)/\(scope)/\(name)/\(version)"
-                                        var headers = HTTPHeaders()
-                                        headers.replaceOrAdd(name: .location, value: location)
-
-                                        return Response.json(status: .created, body: response, headers: headers)
-                                    }.cascade(to: responsePromise)
+                                case .success(let checksumAndManifests):
+                                    continuation.resume(returning: checksumAndManifests)
                                 case .failure(let error):
-                                    responsePromise.fail(error)
+                                    request.logger.info("manifest error \(error)")
+                                    continuation.resume(throwing: error)
                                 }
                             }
-
-                            // Clean up temp directory
-                            let future = responsePromise.futureResult
-                            future.whenComplete { _ in try? self.fileSystem.removeFileTree(directoryPath) }
-                            return future
+                        } catch {
+                            request.logger.info("process  archiveerror ")
+                            continuation.resume(throwing: error)
                         }
-                    } catch {
-                        return request.eventLoop.makeFailedFuture(error)
                     }
+
+                    // Insert into database
+                    _ = try await self.packageReleases.create(
+                        package: package,
+                        version: version,
+                        repositoryURL: metadata?.repositoryURL,
+                        commitHash: metadata?.commitHash,
+                        checksum: checksum,
+                        sourceArchive: archiveData,
+                        manifests: manifests
+                    )
+
+                    let response = CreatePackageReleaseResponse(
+                        scope: scope.description,
+                        name: name.description,
+                        version: version.description,
+                        metadata: metadata,
+                        checksum: checksum
+                    )
+
+                    let location = "\(self.configuration.api.baseURL)/\(scope)/\(name)/\(version)"
+                    var headers = HTTPHeaders()
+                    headers.replaceOrAdd(name: .location, value: location)
+
+                    promise.succeed(Response.json(status: .created, body: response, headers: headers))
                 }
+            } catch {
+                promise.fail(error)
+            }
+        }
+        return promise.futureResult
+    }
+
+    private func processSourceArchive(_ archiveData: Data, completion: @escaping (Result<(String, [Manifest]), Error>) -> Void) throws {
+        // Delete the directory ourselves instead of setting `removeTreeOnDeinit: true`
+        // so we don't risk having the directory deleted prematurely.
+        try withTemporaryDirectory(removeTreeOnDeinit: false) { directoryPath in
+            // Write the source archive to temp file
+            let archivePath = directoryPath.appending(component: "package.zip")
+            try self.fileSystem.writeFileContents(archivePath, bytes: ByteString(Array(archiveData)))
+
+            // Run `swift package compute-checksum` tool
+            let checksum = try Process.checkNonZeroExit(arguments: ["swift", "package", "compute-checksum", archivePath.pathString])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            let packagePath = directoryPath.appending(component: "package")
+            try self.fileSystem.createDirectory(packagePath, recursive: true)
+
+            // Unzip the source archive
+            self.archiver.extract(from: archivePath, to: packagePath) { result in
+                switch result {
+                case .success:
+                    do {
+                        // Find manifests
+                        let manifests = try self.getManifests(packagePath)
+                        // Package.swift is required
+                        guard manifests.first(where: { $0.0 == nil }) != nil else {
+                            throw PackageRegistry.APIError.badRequest("Package.swift is missing or invalid in the source archive")
+                        }
+                        completion(.success((checksum, manifests)))
+                    } catch {
+                        completion(.failure(error))
+                    }
+                case .failure(let error):
+                    completion(.failure(error))
+                }
+
+                // Delete the temp directory when we are done
+                _ = try? self.fileSystem.removeFileTree(directoryPath)
             }
         }
     }
 
-    private func getManifests(_ packageDirectory: AbsolutePath) throws -> [(SwiftLanguageVersion?, String, ToolsVersion, Data)] {
+    private func getManifests(_ packageDirectory: AbsolutePath) throws -> [Manifest] {
         // Package.swift and version-specific manifests
         let regex = try NSRegularExpression(pattern: #"\APackage(@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?)?.swift\z"#, options: .caseInsensitive)
         return try self.fileSystem.getDirectoryContents(packageDirectory).compactMap { filename in

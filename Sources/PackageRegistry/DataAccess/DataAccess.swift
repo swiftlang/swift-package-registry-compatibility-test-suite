@@ -12,7 +12,6 @@
 
 import struct Foundation.Data
 
-import NIO
 import PackageModel
 import TSCUtility
 
@@ -33,9 +32,9 @@ protocol PackageReleasesDAO {
                 commitHash: String?,
                 checksum: String,
                 sourceArchive: Data,
-                manifests: [(SwiftLanguageVersion?, String, ToolsVersion, Data)]) -> EventLoopFuture<(PackageRegistryModel.PackageRelease, PackageRegistryModel.PackageResource, [PackageRegistryModel.PackageManifest])>
+                manifests: [(SwiftLanguageVersion?, String, ToolsVersion, Data)]) async throws -> (PackageRegistryModel.PackageRelease, PackageRegistryModel.PackageResource, [PackageRegistryModel.PackageManifest])
 
-    func get(package: PackageIdentity, version: Version) -> EventLoopFuture<PackageRegistryModel.PackageRelease>
+    func get(package: PackageIdentity, version: Version) async throws -> PackageRegistryModel.PackageRelease
 }
 
 protocol PackageResourcesDAO {
@@ -43,7 +42,7 @@ protocol PackageResourcesDAO {
                 version: Version,
                 type: PackageRegistryModel.PackageResourceType,
                 checksum: String,
-                bytes: Data) -> EventLoopFuture<PackageRegistryModel.PackageResource>
+                bytes: Data) async throws -> PackageRegistryModel.PackageResource
 }
 
 protocol PackageManifestsDAO {
@@ -52,7 +51,7 @@ protocol PackageManifestsDAO {
                 swiftVersion: SwiftLanguageVersion?,
                 filename: String,
                 swiftToolsVersion: ToolsVersion,
-                bytes: Data) -> EventLoopFuture<PackageRegistryModel.PackageManifest>
+                bytes: Data) async throws -> PackageRegistryModel.PackageManifest
 }
 
 enum DataAccessError: Equatable, Error {

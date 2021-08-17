@@ -12,6 +12,7 @@
 
 import Foundation
 
+import _NIOConcurrency
 import NIO
 import PackageModel
 import PostgresKit
@@ -19,6 +20,8 @@ import TSCUtility
 
 extension PostgresDataAccess {
     struct PackageReleases: PackageReleasesDAO {
+        typealias CreateResult = (PackageRegistryModel.PackageRelease, PackageRegistryModel.PackageResource, [PackageRegistryModel.PackageManifest])
+
         private static let tableName = "package_releases"
 
         private let connectionPool: EventLoopGroupConnectionPool<PostgresConnectionSource>
@@ -37,33 +40,51 @@ extension PostgresDataAccess {
                     commitHash: String?,
                     checksum: String,
                     sourceArchive: Data,
-                    manifests: [(SwiftLanguageVersion?, String, ToolsVersion, Data)]) -> EventLoopFuture<(PackageRegistryModel.PackageRelease, PackageRegistryModel.PackageResource, [PackageRegistryModel.PackageManifest])> {
-            self.connectionPool.withConnectionThrowing { connection in
+                    manifests: [(SwiftLanguageVersion?, String, ToolsVersion, Data)]) async throws -> CreateResult {
+            try await self.connectionPool.withConnectionThrowing { connection in
                 // Insert into three tables, commit iff all succeed
-                connection.query("BEGIN;").flatMap { _ in
-                    // package_resources
-                    self.packageResources.create(package: package, version: version, type: .sourceArchive, checksum: checksum, bytes: sourceArchive).flatMap { resource in
-                        let manifestFutures = manifests.map {
-                            self.packageManifests.create(package: package, version: version, swiftVersion: $0.0, filename: $0.1, swiftToolsVersion: $0.2, bytes: $0.3)
-                        }
-                        // package_manifests
-                        return EventLoopFuture.whenAllSucceed(manifestFutures, on: connection.eventLoop).flatMap { manifests in
+                connection.query("BEGIN;").flatMap { _ -> EventLoopFuture<CreateResult> in
+                    let promise = connection.eventLoop.makePromise(of: CreateResult.self)
+                    Task.detached {
+                        do {
+                            // package_resources
+                            let packageResource = try await self.packageResources.create(package: package, version: version, type: .sourceArchive,
+                                                                                         checksum: checksum, bytes: sourceArchive)
+                            // package_manifests
+                            let packageManifests: [PackageRegistryModel.PackageManifest] =
+                                try await withThrowingTaskGroup(of: PackageRegistryModel.PackageManifest.self) { group in
+                                    var packageManifests = [PackageRegistryModel.PackageManifest]()
+                                    for manifest in manifests {
+                                        group.addTask {
+                                            try await self.packageManifests.create(package: package, version: version, swiftVersion: manifest.0,
+                                                                                   filename: manifest.1, swiftToolsVersion: manifest.2, bytes: manifest.3)
+                                        }
+                                    }
+                                    while let manifest = try await group.next() {
+                                        packageManifests.append(manifest)
+                                    }
+                                    return packageManifests
+                                }
                             // package_releases
-                            self.create(package: package, version: version, repositoryURL: repositoryURL, commitHash: commitHash).flatMap { release in
-                                connection.query("COMMIT;")
-                                    .map { _ in (release, resource, manifests) }
-                            }
+                            let packageRelease = try await self.create(package: package, version: version, repositoryURL: repositoryURL, commitHash: commitHash)
+
+                            connection.query("COMMIT;").map { _ in
+                                (packageRelease, packageResource, packageManifests)
+                            }.cascade(to: promise)
+                        } catch {
+                            promise.fail(error)
                         }
                     }
+                    return promise.futureResult
                 }
-            }
+            }.get()
         }
 
         func create(package: PackageIdentity,
                     version: Version,
                     repositoryURL: String?,
-                    commitHash: String?) -> EventLoopFuture<PackageRegistryModel.PackageRelease> {
-            self.connectionPool.withConnectionThrowing { connection in
+                    commitHash: String?) async throws -> PackageRegistryModel.PackageRelease {
+            try await self.connectionPool.withConnectionThrowing { connection in
                 let packageRelease = PackageRelease(scope: package.scope.description,
                                                     name: package.name.description,
                                                     version: version.description,
@@ -77,16 +98,15 @@ extension PostgresDataAccess {
                     .model(packageRelease)
                     .run()
                     .flatMapThrowing { try packageRelease.model() }
-            }
+            }.get()
         }
 
-        func get(package: PackageIdentity, version: Version) -> EventLoopFuture<PackageRegistryModel.PackageRelease> {
-            self.fetch(package: package, version: version)
-                .flatMapThrowing { try $0.model() }
+        func get(package: PackageIdentity, version: Version) async throws -> PackageRegistryModel.PackageRelease {
+            try await self.fetch(package: package, version: version).model()
         }
 
-        private func fetch(package: PackageIdentity, version: Version) -> EventLoopFuture<PackageRelease> {
-            self.connectionPool.withConnection { connection in
+        private func fetch(package: PackageIdentity, version: Version) async throws -> PackageRelease {
+            try await self.connectionPool.withConnection { connection in
                 connection.select()
                     .column("*")
                     .from(Self.tableName)
@@ -96,7 +116,7 @@ extension PostgresDataAccess {
                     .where(SQLFunction("lower", args: "version"), .equal, SQLBind(version.description.lowercased()))
                     .first(decoding: PackageRelease.self)
                     .unwrap(orError: DataAccessError.notFound)
-            }
+            }.get()
         }
     }
 }

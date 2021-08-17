@@ -53,6 +53,7 @@ let package = Package(
                               "PostgresMigrations",
                               "PackageRegistryModels",
                               .product(name: "NIO", package: "swift-nio"),
+                              .product(name: "_NIOConcurrency", package: "swift-nio"), // async/await bridge
                               .product(name: "Vapor", package: "vapor"),
                               .product(name: "Lifecycle", package: "swift-service-lifecycle"),
                               .product(name: "LifecycleNIOCompat", package: "swift-service-lifecycle"),
@@ -82,9 +83,9 @@ let package = Package(
 
         .testTarget(name: "PackageRegistryTests",
                     dependencies: [
-            "PackageRegistryModels",
-            "PackageRegistryClient",
-        ],
+                        "PackageRegistryModels",
+                        "PackageRegistryClient",
+                    ],
                     exclude: ["Resources/"]),
     ]
 )

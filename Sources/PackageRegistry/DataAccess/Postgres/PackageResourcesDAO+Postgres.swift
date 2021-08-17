@@ -12,7 +12,7 @@
 
 import Foundation
 
-import NIO
+import _NIOConcurrency
 import PostgresKit
 import TSCUtility
 
@@ -30,8 +30,8 @@ extension PostgresDataAccess {
                     version: Version,
                     type: PackageRegistryModel.PackageResourceType,
                     checksum: String,
-                    bytes: Data) -> EventLoopFuture<PackageRegistryModel.PackageResource> {
-            self.connectionPool.withConnectionThrowing { connection in
+                    bytes: Data) async throws -> PackageRegistryModel.PackageResource {
+            try await self.connectionPool.withConnectionThrowing { connection in
                 let packageResource = PackageResource(scope: package.scope.description,
                                                       name: package.name.description,
                                                       version: version.description,
@@ -43,7 +43,7 @@ extension PostgresDataAccess {
                     .model(packageResource)
                     .run()
                     .flatMapThrowing { try packageResource.model() }
-            }
+            }.get()
         }
     }
 }

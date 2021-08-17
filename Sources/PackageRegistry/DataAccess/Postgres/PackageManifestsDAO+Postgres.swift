@@ -12,7 +12,7 @@
 
 import Foundation
 
-import NIO
+import _NIOConcurrency
 import PackageModel
 import PostgresKit
 import TSCUtility
@@ -32,8 +32,8 @@ extension PostgresDataAccess {
                     swiftVersion: SwiftLanguageVersion?,
                     filename: String,
                     swiftToolsVersion: ToolsVersion,
-                    bytes: Data) -> EventLoopFuture<PackageRegistryModel.PackageManifest> {
-            self.connectionPool.withConnectionThrowing { connection in
+                    bytes: Data) async throws -> PackageRegistryModel.PackageManifest {
+            try await self.connectionPool.withConnectionThrowing { connection in
                 let packageManifest = PackageManifest(scope: package.scope.description,
                                                       name: package.name.description,
                                                       version: version.description,
@@ -46,7 +46,7 @@ extension PostgresDataAccess {
                     .model(packageManifest)
                     .run()
                     .flatMapThrowing { try packageManifest.model() }
-            }
+            }.get()
         }
     }
 }
