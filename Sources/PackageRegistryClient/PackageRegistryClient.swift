@@ -81,7 +81,7 @@ public struct PackageRegistryClient {
         }
     }
 
-    /// 4.6 `POST /{scope}/{name}/{version}` - create a package release
+    /// 4.6 `PUT /{scope}/{name}/{version}` - create a package release
     ///
     /// - Parameters:
     ///   - scope: Package scope. Must match regex pattern in 3.6.1.
@@ -154,7 +154,7 @@ public struct PackageRegistryClient {
         let url = "\(self.configuration.url)/\(scope)/\(name)/\(version)"
 
         do {
-            let request = try HTTPClient.Request(url: url, method: .POST, headers: headers, body: requestBody)
+            let request = try HTTPClient.Request(url: url, method: .PUT, headers: headers, body: requestBody)
             return self.client.execute(request: request, deadline: deadline ?? (NIODeadline.now() + self.configuration.defaultRequestTimeout))
         } catch {
             self.logger.warning("Failed to create request: \(error)")

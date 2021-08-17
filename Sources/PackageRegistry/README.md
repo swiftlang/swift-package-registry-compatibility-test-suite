@@ -19,12 +19,12 @@ Features not implemented (and their corresponding section in the specification):
 - All `GET` endpoints support `HEAD` requests. (4)
 - All API paths support `OPTIONS` requests. (4)
 
-#### Create package release (`POST /{scope}/{name}/{version}`) (4.6) 
+#### Create package release (`PUT /{scope}/{name}/{version}`) (4.6) 
 
-This API is in proposal stage: [pitch](https://forums.swift.org/t/package-registry-service-publish-endpoint/51067)
+This API is in proposal stage: [pitch](https://forums.swift.org/t/package-registry-service-publish-endpoint/51067), [API specification update](https://github.com/apple/swift-evolution/pull/1424)
 
 - Package `scope` and `name` are validated according to section 3.6 of the specification. 
-- The source archive being published must be generated using the `package archive-source` command.
+- The source archive being published should be generated using the `package archive-source` command.
 - `PackageRegistryModels.PackageReleaseMetadata` is the only metadata model supported by this server implementation. 
 - Refer to the API specification or `PackageRegistryClient`'s source code for the request body format. Note the `\r`s and the terminating boundary line (i.e., `--boundary--\r\n`). The `metadata` part is required. Send `{}` if there is no metadata.
 - The `PackageRegistryTool` module provides a CLI tool for interacting with a package registry. 

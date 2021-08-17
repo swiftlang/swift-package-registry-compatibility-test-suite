@@ -47,8 +47,8 @@ extension PackageRegistry {
 
             // FIXME: publish endpoints should require auth
             let createController = CreatePackageReleaseController(configuration: configuration, dataAccess: dataAccess)
-            // 4.6 POST /{scope}/{name}/{version} - create package release
-            apiRoutes.on(.POST, ":scope", ":name", ":version", body: .collect(maxSize: "10mb"), use: createController.pushPackageRelease)
+            // 4.6 PUT /{scope}/{name}/{version} - create package release
+            apiRoutes.on(.PUT, ":scope", ":name", ":version", body: .collect(maxSize: "10mb"), use: createController.pushPackageRelease)
 
             // 4 A server should support `OPTIONS` requests
             apiRoutes.on(.OPTIONS, ":scope", ":name", use: makeOptionsRequestHandler(allowMethods: [.GET]))
@@ -64,9 +64,9 @@ extension PackageRegistry {
 
                 // Else it could be one of:
                 // - Fetch package release information (GET)
-                // - Create package release (POST)
+                // - Create package release (PUT)
                 // - Delete package release (DELETE)
-                return makeOptionsRequestHandler(allowMethods: [.GET, .POST, .DELETE])(request)
+                return makeOptionsRequestHandler(allowMethods: [.GET, .PUT, .DELETE])(request)
             }
             apiRoutes.on(.OPTIONS, ":scope", ":name", ":version", "Package.swift", use: makeOptionsRequestHandler(allowMethods: [.GET]))
             apiRoutes.on(.OPTIONS, "identifiers", use: makeOptionsRequestHandler(allowMethods: [.GET]))
@@ -104,6 +104,7 @@ extension PackageRegistry {
 
     enum APIError: Error {
         case badRequest(String)
+        case unprocessableEntity(String)
     }
 }
 
@@ -123,6 +124,8 @@ extension PackageRegistry.API {
                 response = Response.jsonError(status: .notFound, detail: "Not found")
             case PackageRegistry.APIError.badRequest(let detail):
                 response = Response.jsonError(status: .badRequest, detail: detail)
+            case PackageRegistry.APIError.unprocessableEntity(let detail):
+                response = Response.jsonError(status: .unprocessableEntity, detail: detail)
             default:
                 response = Response.jsonError(status: .internalServerError, detail: "The server has encountered an error. Please check logs for details.")
             }

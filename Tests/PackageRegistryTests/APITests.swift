@@ -164,6 +164,31 @@ final class BasicAPITests: XCTestCase {
         XCTAssertEqual(HTTPResponseStatus.conflict.code, problemDetails.status)
     }
 
+    func testCreatePackageRelease_badArchive() throws {
+        let archiveURL = URL(fileURLWithPath: #file).deletingLastPathComponent()
+            .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent("bad-package.zip")
+        let archive = try Data(contentsOf: archiveURL)
+
+        // Create a unique scope to avoid conflicts between tests and test runs
+        let scope = "test-\(UUID().uuidString.prefix(6))"
+        let metadata: PackageReleaseMetadata? = nil
+
+        let response = try self.client.createPackageRelease(scope: scope,
+                                                            name: "bad",
+                                                            version: "1.0.0",
+                                                            sourceArchive: archive,
+                                                            metadata: metadata,
+                                                            deadline: NIODeadline.now() + .seconds(3)).wait()
+        XCTAssertEqual(.unprocessableEntity, response.status)
+        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+            return XCTFail("ProblemDetails should not be nil")
+        }
+        XCTAssertEqual(HTTPResponseStatus.unprocessableEntity.code, problemDetails.status)
+    }
+
     // MARK: - info and health endpoints
 
     func testInfo() throws {
@@ -174,6 +199,20 @@ final class BasicAPITests: XCTestCase {
     func testHealth() throws {
         let response = try self.client.httpClient.get(url: self.url + "/__health").wait()
         XCTAssertEqual(.ok, response.status)
+    }
+
+    // MARK: - HEAD and OPTIONS requests
+
+    func testOptions_scopeNameVersion() throws {
+        let request = try HTTPClient.Request(url: self.url + "/scope/name/version", method: .OPTIONS)
+        let response = try self.client.httpClient.execute(request: request).wait()
+
+        XCTAssertEqual(.ok, response.status)
+        XCTAssertNotNil(response.headers["Link"].first)
+
+        let allowedMethods = Set(response.headers["Allow"].first?.lowercased().split(separator: ",").map(String.init) ?? [])
+        let expectedAllowedMethods: Set<String> = ["get", "put", "delete"]
+        XCTAssertEqual(expectedAllowedMethods, allowedMethods)
     }
 }
 

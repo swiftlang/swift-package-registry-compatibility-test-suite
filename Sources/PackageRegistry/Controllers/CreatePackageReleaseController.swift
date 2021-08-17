@@ -87,7 +87,7 @@ struct CreatePackageReleaseController {
                     let createRequest = try FormDataDecoder().decode(CreatePackageReleaseRequest.self, from: requestBody, boundary: "boundary")
 
                     guard let archiveData = createRequest.sourceArchive else {
-                        return promise.fail(PackageRegistry.APIError.badRequest("Source archive is either missing or invalid"))
+                        return promise.fail(PackageRegistry.APIError.unprocessableEntity("Source archive is either missing or invalid"))
                     }
                     let metadata = createRequest.metadata
 
@@ -99,12 +99,10 @@ struct CreatePackageReleaseController {
                                 case .success(let checksumAndManifests):
                                     continuation.resume(returning: checksumAndManifests)
                                 case .failure(let error):
-                                    request.logger.info("manifest error \(error)")
                                     continuation.resume(throwing: error)
                                 }
                             }
                         } catch {
-                            request.logger.info("process  archiveerror ")
                             continuation.resume(throwing: error)
                         }
                     }
@@ -133,6 +131,8 @@ struct CreatePackageReleaseController {
                     headers.replaceOrAdd(name: .location, value: location)
 
                     promise.succeed(Response.json(status: .created, body: response, headers: headers))
+                } catch {
+                    promise.fail(error)
                 }
             } catch {
                 promise.fail(error)
@@ -158,6 +158,9 @@ struct CreatePackageReleaseController {
 
             // Unzip the source archive
             self.archiver.extract(from: archivePath, to: packagePath) { result in
+                // Delete the temp directory when we are done
+                defer { _ = try? self.fileSystem.removeFileTree(directoryPath) }
+
                 switch result {
                 case .success:
                     do {
@@ -165,7 +168,7 @@ struct CreatePackageReleaseController {
                         let manifests = try self.getManifests(packagePath)
                         // Package.swift is required
                         guard manifests.first(where: { $0.0 == nil }) != nil else {
-                            throw PackageRegistry.APIError.badRequest("Package.swift is missing or invalid in the source archive")
+                            throw PackageRegistry.APIError.unprocessableEntity("Package.swift is missing or invalid in the source archive")
                         }
                         completion(.success((checksum, manifests)))
                     } catch {
@@ -174,9 +177,6 @@ struct CreatePackageReleaseController {
                 case .failure(let error):
                     completion(.failure(error))
                 }
-
-                // Delete the temp directory when we are done
-                _ = try? self.fileSystem.removeFileTree(directoryPath)
             }
         }
     }
