@@ -38,7 +38,7 @@ final class BasicAPITests: XCTestCase {
         self.url = "http://\(host):\(port)"
 
         let clientConfiguration = PackageRegistryClient.Configuration(url: self.url, tls: false, defaultRequestTimeout: .seconds(1))
-        self.client = PackageRegistryClient(eventLoopGroupProvider: .shared(eventLoopGroup), configuration: clientConfiguration)
+        self.client = PackageRegistryClient(eventLoopGroupProvider: .createNew, configuration: clientConfiguration)
     }
 
     override func tearDown() {
@@ -71,8 +71,8 @@ final class BasicAPITests: XCTestCase {
 
         XCTAssertEqual(.created, response.status)
         XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/json"))
-        XCTAssertEqual(PackageRegistry.APIVersion.v1.rawValue, response.headers["Content-Version"].first)
-        XCTAssertEqual("\(self.client.url)/\(scope)/\(name)/\(version)", response.headers["Location"].first)
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+        XCTAssertEqual(self.url + "/\(scope)/\(name)/\(version)", response.headers["Location"].first)
 
         guard let createResponse: CreatePackageReleaseResponse = try response.decodeBody() else {
             return XCTFail("CreatePackageReleaseResponse should not be nil")
@@ -107,8 +107,8 @@ final class BasicAPITests: XCTestCase {
 
         XCTAssertEqual(.created, response.status)
         XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/json"))
-        XCTAssertEqual(PackageRegistry.APIVersion.v1.rawValue, response.headers["Content-Version"].first)
-        XCTAssertEqual("\(self.client.url)/\(scope)/\(name)/\(version)", response.headers["Location"].first)
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+        XCTAssertEqual(self.url + "/\(scope)/\(name)/\(version)", response.headers["Location"].first)
 
         guard let createResponse: CreatePackageReleaseResponse = try response.decodeBody() else {
             return XCTFail("CreatePackageReleaseResponse should not be nil")
@@ -156,7 +156,7 @@ final class BasicAPITests: XCTestCase {
 
         XCTAssertEqual(.conflict, response.status)
         XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
-        XCTAssertEqual(PackageRegistry.APIVersion.v1.rawValue, response.headers["Content-Version"].first)
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
 
         guard let problemDetails: ProblemDetails = try response.decodeBody() else {
             return XCTFail("ProblemDetails should not be nil")
@@ -166,13 +166,13 @@ final class BasicAPITests: XCTestCase {
 
     // MARK: - info and health endpoints
 
-    func testInfo() {
+    func testInfo() throws {
         let response = try self.client.httpClient.get(url: self.url).wait()
         XCTAssertEqual(.ok, response.status)
     }
 
-    func testHealth() {
-        let response = try self.client.httpClient.get(self.url + "/__health").wait()
+    func testHealth() throws {
+        let response = try self.client.httpClient.get(url: self.url + "/__health").wait()
         XCTAssertEqual(.ok, response.status)
     }
 }

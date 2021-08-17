@@ -18,7 +18,6 @@ let package = Package(
     name: "swift-package-registry-compatibility-test-suite",
     platforms: [.macOS("12.0")],
     products: [
-        .executable(name: "PackageRegistryLauncher", targets: ["PackageRegistryLauncher"]),
         .executable(name: "package-registry", targets: ["PackageRegistryTool"]),
     ],
     dependencies: [
@@ -72,7 +71,7 @@ let package = Package(
             .product(name: "Logging", package: "swift-log"),
         ]),
 
-        .target(name: "PackageRegistryTool", dependencies: [
+        .executableTarget(name: "PackageRegistryTool", dependencies: [
             "PackageRegistryClient",
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ]),
@@ -81,9 +80,11 @@ let package = Package(
             "PostgresMigrations",
         ]),
 
-        .testTarget(name: "PackageRegistryTests", dependencies: [
+        .testTarget(name: "PackageRegistryTests",
+                    dependencies: [
             "PackageRegistryModels",
             "PackageRegistryClient",
-        ]),
+        ],
+                    exclude: ["Resources/"]),
     ]
 )
