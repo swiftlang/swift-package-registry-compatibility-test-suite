@@ -15,6 +15,25 @@ import Foundation
 import PackageRegistryModels
 import Vapor
 
+// MARK: - Request
+
+extension Request {
+    func parseAcceptHeader() -> (apiVersion: String?, mediaType: String?) {
+        /// 3.5 API versioning - `Accept` header format
+        guard let header = self.headers[.accept].filter({ $0.hasPrefix("application/vnd.swift.registry") }).first,
+              let regex = try? NSRegularExpression(pattern: #"application/vnd.swift.registry(\.v([^+]+))?(\+(.+))?"#, options: .caseInsensitive),
+              let match = regex.firstMatch(in: header, options: [], range: NSRange(location: 0, length: header.count)) else {
+            return (nil, nil)
+        }
+
+        let apiVersion = Range(match.range(at: 2), in: header).map { String(header[$0]) }
+        let mediaType = Range(match.range(at: 4), in: header).map { String(header[$0]) }
+        return (apiVersion, mediaType)
+    }
+}
+
+// MARK: - Response
+
 extension Response {
     static func json(_ body: Encodable) -> Response {
         Response.json(status: .ok, body: body)
@@ -45,27 +64,30 @@ extension Response {
     }
 }
 
-extension Encodable {
-    var jsonString: Swift.Result<String, Error> {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+// MARK: - Request handler
 
-        do {
-            let data = try encoder.encode(self)
-            guard let json = String(data: data, encoding: .utf8) else {
-                return .failure(JSONCodecError.unknownEncodingError)
+extension RoutesBuilder {
+    @discardableResult
+    func on<Response>(_ method: HTTPMethod,
+                      _ path: PathComponent...,
+                      body: HTTPBodyStreamStrategy = .collect,
+                      use closure: @escaping (Request) async throws -> Response) -> Route where Response: ResponseEncodable {
+        self.on(method, path, body: body, use: { request -> EventLoopFuture<Response> in
+            let promise = request.eventLoop.makePromise(of: Response.self)
+            Task.detached {
+                do {
+                    let response = try await closure(request)
+                    promise.succeed(response)
+                } catch {
+                    promise.fail(error)
+                }
             }
-            return .success(json)
-        } catch {
-            return .failure(error)
-        }
+            return promise.futureResult
+        })
     }
 }
 
-enum JSONCodecError: Error {
-    case unknownEncodingError
-    case unknownDecodingError
-}
+// MARK: - Others
 
 struct APIVersionStorageKey: StorageKey {
     typealias Value = PackageRegistry.APIVersion

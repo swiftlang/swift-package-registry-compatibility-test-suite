@@ -144,7 +144,7 @@ extension PackageRegistry.API {
 struct APIVersionMiddleware: Middleware {
     func respond(to request: Request, chainingTo next: Responder) -> EventLoopFuture<Response> {
         // 3.5 API versioning - a client should set the `Accept` header to specify the API version
-        let (acceptAPIVersion, _) = parseAcceptHeader(for: request)
+        let (acceptAPIVersion, _) = request.parseAcceptHeader()
         let parsedAPIVersion = acceptAPIVersion.flatMap { PackageRegistry.APIVersion(rawValue: $0) }
 
         // An unknown API version is specified

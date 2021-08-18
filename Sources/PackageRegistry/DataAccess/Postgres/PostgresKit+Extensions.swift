@@ -39,6 +39,7 @@ extension SQLQueryFetcher {
 }
 
 extension PostgresDatabase {
+    @discardableResult
     func query(_ string: String, _ binds: [PostgresNIO.PostgresData] = []) async throws -> PostgresNIO.PostgresQueryResult {
         let future: EventLoopFuture<PostgresNIO.PostgresQueryResult> = self.query(string, binds)
         return try await future.get()

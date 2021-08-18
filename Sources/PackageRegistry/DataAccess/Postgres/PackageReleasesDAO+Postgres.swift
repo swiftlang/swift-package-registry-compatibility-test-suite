@@ -41,7 +41,7 @@ extension PostgresDataAccess {
                     manifests: [(SwiftLanguageVersion?, String, ToolsVersion, Data)]) async throws -> CreateResult {
             try await self.connectionPool.withConnectionThrowing { connection in
                 // Insert into three tables, commit iff all succeed
-                _ = try await connection.query("BEGIN;")
+                try await connection.query("BEGIN;")
 
                 // package_resources
                 let packageResource = try await self.packageResources.create(package: package, version: version, type: .sourceArchive,
@@ -64,7 +64,7 @@ extension PostgresDataAccess {
                 // package_releases
                 let packageRelease = try await self.create(package: package, version: version, repositoryURL: repositoryURL, commitHash: commitHash)
 
-                _ = try await connection.query("COMMIT;")
+                try await connection.query("COMMIT;")
 
                 return (packageRelease, packageResource, packageManifests)
             }

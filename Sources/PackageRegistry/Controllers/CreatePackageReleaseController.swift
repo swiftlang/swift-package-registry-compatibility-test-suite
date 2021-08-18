@@ -39,7 +39,7 @@ struct CreatePackageReleaseController {
         self.archiver = ZipArchiver(fileSystem: self.fileSystem)
     }
 
-    func pushPackageRelease(request: Request) throws -> EventLoopFuture<Response> {
+    func pushPackageRelease(request: Request) async throws -> Response {
         guard let scopeString = request.parameters.get("scope") else {
             throw PackageRegistry.APIError.badRequest("Invalid path: missing 'scope'")
         }
@@ -75,70 +75,60 @@ struct CreatePackageReleaseController {
 
         let package = PackageIdentity(scope: scope, name: name)
 
-        let promise = request.eventLoop.makePromise(of: Response.self)
-        Task.detached { () -> Void in
-            do {
-                _ = try await self.packageReleases.get(package: package, version: version)
-                // A release already exists! Return 409 (4.6)
-                promise.succeed(Response.jsonError(status: .conflict, detail: "\(package)@\(version) already exists"))
-            } catch DataAccessError.notFound {
+        do {
+            _ = try await self.packageReleases.get(package: package, version: version)
+            // A release already exists! Return 409 (4.6)
+            return Response.jsonError(status: .conflict, detail: "\(package)@\(version) already exists")
+        } catch DataAccessError.notFound {
+            // Release doesn't exist yet. Proceed.
+            let createRequest = try FormDataDecoder().decode(CreatePackageReleaseRequest.self, from: requestBody, boundary: "boundary")
+
+            guard let archiveData = createRequest.sourceArchive else {
+                throw PackageRegistry.APIError.unprocessableEntity("Source archive is either missing or invalid")
+            }
+            let metadata = createRequest.metadata
+
+            // Analyze the source archive
+            let (checksum, manifests) = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(String, [Manifest]), Error>) in
                 do {
-                    // Release doesn't exist yet. Proceed.
-                    let createRequest = try FormDataDecoder().decode(CreatePackageReleaseRequest.self, from: requestBody, boundary: "boundary")
-
-                    guard let archiveData = createRequest.sourceArchive else {
-                        return promise.fail(PackageRegistry.APIError.unprocessableEntity("Source archive is either missing or invalid"))
-                    }
-                    let metadata = createRequest.metadata
-
-                    // Analyze the source archive
-                    let (checksum, manifests) = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(String, [Manifest]), Error>) in
-                        do {
-                            try self.processSourceArchive(archiveData) { result in
-                                switch result {
-                                case .success(let checksumAndManifests):
-                                    continuation.resume(returning: checksumAndManifests)
-                                case .failure(let error):
-                                    continuation.resume(throwing: error)
-                                }
-                            }
-                        } catch {
+                    try self.processSourceArchive(archiveData) { result in
+                        switch result {
+                        case .success(let checksumAndManifests):
+                            continuation.resume(returning: checksumAndManifests)
+                        case .failure(let error):
                             continuation.resume(throwing: error)
                         }
                     }
-
-                    // Insert into database
-                    _ = try await self.packageReleases.create(
-                        package: package,
-                        version: version,
-                        repositoryURL: metadata?.repositoryURL,
-                        commitHash: metadata?.commitHash,
-                        checksum: checksum,
-                        sourceArchive: archiveData,
-                        manifests: manifests
-                    )
-
-                    let response = CreatePackageReleaseResponse(
-                        scope: scope.description,
-                        name: name.description,
-                        version: version.description,
-                        metadata: metadata,
-                        checksum: checksum
-                    )
-
-                    let location = "\(self.configuration.api.baseURL)/\(scope)/\(name)/\(version)"
-                    var headers = HTTPHeaders()
-                    headers.replaceOrAdd(name: .location, value: location)
-
-                    promise.succeed(Response.json(status: .created, body: response, headers: headers))
                 } catch {
-                    promise.fail(error)
+                    continuation.resume(throwing: error)
                 }
-            } catch {
-                promise.fail(error)
             }
+
+            // Insert into database
+            _ = try await self.packageReleases.create(
+                package: package,
+                version: version,
+                repositoryURL: metadata?.repositoryURL,
+                commitHash: metadata?.commitHash,
+                checksum: checksum,
+                sourceArchive: archiveData,
+                manifests: manifests
+            )
+
+            let response = CreatePackageReleaseResponse(
+                scope: scope.description,
+                name: name.description,
+                version: version.description,
+                metadata: metadata,
+                checksum: checksum
+            )
+
+            let location = "\(self.configuration.api.baseURL)/\(scope)/\(name)/\(version)"
+            var headers = HTTPHeaders()
+            headers.replaceOrAdd(name: .location, value: location)
+
+            return Response.json(status: .created, body: response, headers: headers)
         }
-        return promise.futureResult
     }
 
     private func processSourceArchive(_ archiveData: Data, completion: @escaping (Result<(String, [Manifest]), Error>) -> Void) throws {
