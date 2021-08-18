@@ -67,7 +67,7 @@ struct PackageRegistryTool: ParsableCommand {
                                                                    name: self.name,
                                                                    version: self.version,
                                                                    sourceArchive: archiveData,
-                                                                   metadata: metadata,
+                                                                   metadataJSON: metadata,
                                                                    deadline: NIODeadline.now() + .seconds(5)).wait()
             } else {
                 var metadata: Data?

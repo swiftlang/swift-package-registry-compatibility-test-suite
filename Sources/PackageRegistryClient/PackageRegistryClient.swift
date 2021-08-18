@@ -112,7 +112,7 @@ public struct PackageRegistryClient {
         \(sourceArchive.base64EncodedString())\r
         """
 
-        var metadataJSONString: String?
+        var metadataJSONString: String!
         if let metadataJSON = metadataJSON {
             metadataJSONString = String(data: metadataJSON, encoding: .utf8)
             guard metadataJSONString != nil else {
@@ -129,7 +129,7 @@ public struct PackageRegistryClient {
         Content-Transfer-Encoding: quoted-printable\r
         Content-Length: \(metadataJSONString.map(\.count) ?? 0)\r
         \r
-        \(metadataJSONString ?? "")\r
+        \(metadataJSONString!)\r
         """
 
         let requestBodyString = """
