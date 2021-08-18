@@ -12,7 +12,6 @@
 
 import struct Foundation.Data
 
-import _NIOConcurrency
 import MultipartKit
 import NIO
 import NIOHTTP1
@@ -89,20 +88,7 @@ struct CreatePackageReleaseController {
             let metadata = createRequest.metadata
 
             // Analyze the source archive
-            let (checksum, manifests) = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(String, [Manifest]), Error>) in
-                do {
-                    try self.processSourceArchive(archiveData) { result in
-                        switch result {
-                        case .success(let checksumAndManifests):
-                            continuation.resume(returning: checksumAndManifests)
-                        case .failure(let error):
-                            continuation.resume(throwing: error)
-                        }
-                    }
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
+            let (checksum, manifests) = try await self.processSourceArchive(archiveData)
 
             // Insert into database
             _ = try await self.packageReleases.create(
@@ -131,42 +117,48 @@ struct CreatePackageReleaseController {
         }
     }
 
-    private func processSourceArchive(_ archiveData: Data, completion: @escaping (Result<(String, [Manifest]), Error>) -> Void) throws {
-        // Delete the directory ourselves instead of setting `removeTreeOnDeinit: true`
-        // so we don't risk having the directory deleted prematurely.
-        try withTemporaryDirectory(removeTreeOnDeinit: false) { directoryPath in
-            // Write the source archive to temp file
-            let archivePath = directoryPath.appending(component: "package.zip")
-            try self.fileSystem.writeFileContents(archivePath, bytes: ByteString(Array(archiveData)))
+    private func processSourceArchive(_ archiveData: Data) async throws -> (String, [Manifest]) {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(String, [Manifest]), Error>) in
+            do {
+                // Delete the directory ourselves instead of setting `removeTreeOnDeinit: true`
+                // so we don't risk having the directory deleted prematurely.
+                try withTemporaryDirectory(removeTreeOnDeinit: false) { directoryPath in
+                    // Write the source archive to temp file
+                    let archivePath = directoryPath.appending(component: "package.zip")
+                    try self.fileSystem.writeFileContents(archivePath, bytes: ByteString(Array(archiveData)))
 
-            // Run `swift package compute-checksum` tool
-            let checksum = try Process.checkNonZeroExit(arguments: ["swift", "package", "compute-checksum", archivePath.pathString])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+                    // Run `swift package compute-checksum` tool
+                    let checksum = try Process.checkNonZeroExit(arguments: ["swift", "package", "compute-checksum", archivePath.pathString])
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
 
-            let packagePath = directoryPath.appending(component: "package")
-            try self.fileSystem.createDirectory(packagePath, recursive: true)
+                    let packagePath = directoryPath.appending(component: "package")
+                    try self.fileSystem.createDirectory(packagePath, recursive: true)
 
-            // Unzip the source archive
-            self.archiver.extract(from: archivePath, to: packagePath) { result in
-                // Delete the temp directory when we are done
-                defer { _ = try? self.fileSystem.removeFileTree(directoryPath) }
+                    // Unzip the source archive
+                    self.archiver.extract(from: archivePath, to: packagePath) { result in
+                        // Delete the temp directory when we are done
+                        defer { _ = try? self.fileSystem.removeFileTree(directoryPath) }
 
-                switch result {
-                case .success:
-                    do {
-                        // Find manifests
-                        let manifests = try self.getManifests(packagePath)
-                        // Package.swift is required
-                        guard manifests.first(where: { $0.0 == nil }) != nil else {
-                            throw PackageRegistry.APIError.unprocessableEntity("Package.swift is missing or invalid in the source archive")
+                        switch result {
+                        case .success:
+                            do {
+                                // Find manifests
+                                let manifests = try self.getManifests(packagePath)
+                                // Package.swift is required
+                                guard manifests.first(where: { $0.0 == nil }) != nil else {
+                                    throw PackageRegistry.APIError.unprocessableEntity("Package.swift is missing or invalid in the source archive")
+                                }
+                                continuation.resume(returning: (checksum, manifests))
+                            } catch {
+                                continuation.resume(throwing: error)
+                            }
+                        case .failure(let error):
+                            continuation.resume(throwing: error)
                         }
-                        completion(.success((checksum, manifests)))
-                    } catch {
-                        completion(.failure(error))
                     }
-                case .failure(let error):
-                    completion(.failure(error))
                 }
+            } catch {
+                continuation.resume(throwing: error)
             }
         }
     }
