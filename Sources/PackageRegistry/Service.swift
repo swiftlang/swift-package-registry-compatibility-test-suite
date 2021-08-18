@@ -39,7 +39,7 @@ enum PackageRegistry {
                            start: .async(dataAccess.migrate),
                            shutdown: .sync(dataAccess.shutdown))
 
-        let api = API(configuration: configuration)
+        let api = API(configuration: configuration, dataAccess: dataAccess)
         lifecycle.register(label: "api",
                            start: .sync(api.start),
                            shutdown: .sync(api.shutdown),

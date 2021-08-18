@@ -48,6 +48,10 @@ extension PackageRegistry {
             var port = ProcessInfo.processInfo.environment["API_SERVER_PORT"].flatMap(Int.init) ?? 9229
             var cors = CORS()
 
+            var baseURL: String {
+                ProcessInfo.processInfo.environment["API_BASE_URL"] ?? "http://\(self.host):\(self.port)"
+            }
+
             var description: String {
                 "[\(API.self): host: \(self.host), port: \(self.port), cors: \(self.cors)]"
             }
