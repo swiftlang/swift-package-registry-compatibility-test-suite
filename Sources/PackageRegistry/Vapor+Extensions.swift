@@ -68,8 +68,22 @@ extension Response {
 
 extension RoutesBuilder {
     @discardableResult
+    func delete<Response>(_ path: PathComponent...,
+                          use closure: @escaping (Request) async throws -> Response) -> Route where Response: ResponseEncodable {
+        self.on(.DELETE, path, use: closure)
+    }
+
+    @discardableResult
     func on<Response>(_ method: HTTPMethod,
                       _ path: PathComponent...,
+                      body: HTTPBodyStreamStrategy = .collect,
+                      use closure: @escaping (Request) async throws -> Response) -> Route where Response: ResponseEncodable {
+        self.on(method, path, body: body, use: closure)
+    }
+
+    @discardableResult
+    func on<Response>(_ method: HTTPMethod,
+                      _ path: [PathComponent],
                       body: HTTPBodyStreamStrategy = .collect,
                       use closure: @escaping (Request) async throws -> Response) -> Route where Response: ResponseEncodable {
         self.on(method, path, body: body, use: { request -> EventLoopFuture<Response> in

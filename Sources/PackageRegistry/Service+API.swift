@@ -41,14 +41,20 @@ extension PackageRegistry {
             let healthController = HealthController()
             self.vapor.routes.get("__health", use: healthController.health)
 
+            let createController = CreatePackageReleaseController(configuration: configuration, dataAccess: dataAccess)
+            let packageReleasesController = PackageReleasesController(dataAccess: dataAccess)
+
             // APIs
             let apiMiddleware: [Middleware] = [MetricsMiddleware(), APIVersionMiddleware()]
             let apiRoutes = self.vapor.routes.grouped(apiMiddleware)
 
-            // FIXME: publish endpoints should require auth
-            let createController = CreatePackageReleaseController(configuration: configuration, dataAccess: dataAccess)
+            // FIXME: publish endpoint should require auth
             // 4.6 PUT /{scope}/{name}/{version} - create package release
             apiRoutes.on(.PUT, ":scope", ":name", ":version", body: .collect(maxSize: "10mb"), use: createController.pushPackageRelease)
+
+            // FIXME: delete endpoint should require auth
+            // 4.7 DELETE /{scope}/{name}/{version} - delete package release
+            apiRoutes.delete(":scope", ":name", ":version", use: packageReleasesController.delete)
 
             // 4 A server should support `OPTIONS` requests
             apiRoutes.on(.OPTIONS, ":scope", ":name", use: makeOptionsRequestHandler(allowMethods: [.GET]))
@@ -57,9 +63,9 @@ extension PackageRegistry {
                     throw PackageRegistry.APIError.badRequest("Invalid path: missing 'version'")
                 }
 
-                // Download source archive API is always GET only
+                // Download source archive (GET) or delete package release (DELETE)
                 if version.hasSuffix(".zip") {
-                    return makeOptionsRequestHandler(allowMethods: [.GET])(request)
+                    return makeOptionsRequestHandler(allowMethods: [.GET, .DELETE])(request)
                 }
 
                 // Else it could be one of:

@@ -35,6 +35,9 @@ protocol PackageReleasesDAO {
                 manifests: [(SwiftLanguageVersion?, String, ToolsVersion, Data)]) async throws -> (PackageRegistryModel.PackageRelease, PackageRegistryModel.PackageResource, [PackageRegistryModel.PackageManifest])
 
     func get(package: PackageIdentity, version: Version) async throws -> PackageRegistryModel.PackageRelease
+
+    // Soft delete
+    func delete(package: PackageIdentity, version: Version) async throws
 }
 
 protocol PackageResourcesDAO {
@@ -57,4 +60,5 @@ protocol PackageManifestsDAO {
 enum DataAccessError: Equatable, Error {
     case notFound
     case invalidData(detail: String)
+    case noChange
 }
