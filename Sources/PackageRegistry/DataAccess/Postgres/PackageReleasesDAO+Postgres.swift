@@ -99,7 +99,7 @@ extension PostgresDataAccess {
                 try await connection.select()
                     .column("*")
                     .from(Self.tableName)
-                    // Case-insensivity comparison
+                    // Case-insensitivity comparison
                     .where(SQLFunction("lower", args: "scope"), .equal, SQLBind(package.scope.description.lowercased()))
                     .where(SQLFunction("lower", args: "name"), .equal, SQLBind(package.name.description.lowercased()))
                     .where(SQLFunction("lower", args: "version"), .equal, SQLBind(version.description.lowercased()))
