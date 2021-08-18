@@ -38,6 +38,8 @@ protocol PackageReleasesDAO {
 
     // Soft delete
     func delete(package: PackageIdentity, version: Version) async throws
+
+    func list(for package: PackageIdentity) async throws -> [PackageRegistryModel.PackageRelease]
 }
 
 protocol PackageResourcesDAO {

@@ -45,7 +45,7 @@ final class BasicAPITests: XCTestCase {
         try! self.client.syncShutdown()
     }
 
-    // MARK: - Create package release tests
+    // MARK: - Create package release
 
     func testCreatePackageRelease_withoutMetadata() throws {
         let name = "swift-service-discovery"
@@ -189,7 +189,7 @@ final class BasicAPITests: XCTestCase {
         XCTAssertEqual(HTTPResponseStatus.unprocessableEntity.code, problemDetails.status)
     }
 
-    // MARK: - Delete package release tests
+    // MARK: - Delete package release
 
     func testDeletePackageRelease() throws {
         let scope = "apple-\(UUID().uuidString.prefix(6))"
@@ -202,7 +202,7 @@ final class BasicAPITests: XCTestCase {
         XCTAssertEqual("1", response.headers["Content-Version"].first)
     }
 
-    func testDeletePackageRelease_notFound() throws {
+    func testDeletePackageRelease_unknown() throws {
         let scope = "apple-\(UUID().uuidString.prefix(6))"
 
         let response = try self.client.httpClient.delete(url: "\(self.url!)/\(scope)/unknown/1.0.0").wait()
@@ -242,6 +242,59 @@ final class BasicAPITests: XCTestCase {
         XCTAssertEqual(HTTPResponseStatus.gone.code, problemDetails.status)
     }
 
+    // MARK: - List package releases
+
+    func testListPackageReleases() throws {
+        // Create some releases for querying
+        let scope = "apple-\(UUID().uuidString.prefix(6))"
+        let name = "swift-nio"
+        let versions = ["1.14.2", "2.29.0", "2.30.0"]
+        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+
+        // Delete one of the versions
+        do {
+            let response = try self.client.httpClient.delete(url: "\(self.url!)/\(scope)/\(name)/2.29.0").wait()
+            XCTAssertEqual(.noContent, response.status)
+        }
+
+        // Test .json suffix, case-insensitivity
+        let urls = ["\(self.url!)/\(scope)/\(name)", "\(self.url!)/\(scope)/\(name).json", "\(self.url!)/\(scope)/\(name.uppercased())"]
+        try urls.forEach {
+            try self.testHead(url: $0)
+
+            let response = try self.client.httpClient.get(url: $0).wait()
+            XCTAssertEqual(.ok, response.status)
+            XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/json"))
+            XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+            guard let releasesResponse: PackageReleasesResponse = try response.decodeBody() else {
+                return XCTFail("PackageReleasesResponse should not be nil")
+            }
+
+            XCTAssertEqual(Set(versions), Set(releasesResponse.releases.keys))
+            XCTAssertEqual(1, releasesResponse.releases.values.filter { $0.problem != nil }.count)
+            XCTAssertEqual(HTTPResponseStatus.gone.code, releasesResponse.releases["2.29.0"]!.problem!.status)
+
+            let links = response.parseLinkHeader()
+            XCTAssertNotNil(links.first { $0.relation == "latest-version" })
+            XCTAssertNotNil(links.first { $0.relation == "canonical" })
+        }
+    }
+
+    func testListPackageReleases_unknown() throws {
+        let scope = "apple-\(UUID().uuidString.prefix(6))"
+
+        let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/unknown").wait()
+        XCTAssertEqual(.notFound, response.status)
+        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+            return XCTFail("ProblemDetails should not be nil")
+        }
+        XCTAssertEqual(HTTPResponseStatus.notFound.code, problemDetails.status)
+    }
+
     // MARK: - info and health endpoints
 
     func testInfo() throws {
@@ -254,33 +307,33 @@ final class BasicAPITests: XCTestCase {
         XCTAssertEqual(.ok, response.status)
     }
 
-    // MARK: - HEAD and OPTIONS requests
+    // MARK: - OPTIONS requests
 
-    func testOptions_scopeNameVersion() throws {
-        let request = try HTTPClient.Request(url: self.url + "/scope/name/version", method: .OPTIONS)
-        let response = try self.client.httpClient.execute(request: request).wait()
-
-        XCTAssertEqual(.ok, response.status)
-        XCTAssertNotNil(response.headers["Link"].first)
-
-        let allowedMethods = Set(response.headers["Allow"].first?.lowercased().split(separator: ",").map(String.init) ?? [])
-        let expectedAllowedMethods: Set<String> = ["get", "put", "delete"]
-        XCTAssertEqual(expectedAllowedMethods, allowedMethods)
-    }
-
-    func testOptions_scopeNameVersionDotZip() throws {
-        let request = try HTTPClient.Request(url: self.url + "/scope/name/version.zip", method: .OPTIONS)
-        let response = try self.client.httpClient.execute(request: request).wait()
-
-        XCTAssertEqual(.ok, response.status)
-        XCTAssertNotNil(response.headers["Link"].first)
-
-        let allowedMethods = Set(response.headers["Allow"].first?.lowercased().split(separator: ",").map(String.init) ?? [])
-        let expectedAllowedMethods: Set<String> = ["get", "delete"]
-        XCTAssertEqual(expectedAllowedMethods, allowedMethods)
+    func testOptions() throws {
+        try self.testOptions(path: "/scope/name", expectedAllowedMethods: ["get"])
+        try self.testOptions(path: "/scope/name.json", expectedAllowedMethods: ["get"])
+        try self.testOptions(path: "/scope/name/version", expectedAllowedMethods: ["get", "put", "delete"])
+        try self.testOptions(path: "/scope/name/version.zip", expectedAllowedMethods: ["get", "delete"])
     }
 
     // MARK: - Helpers
+
+    private func testHead(url: String) throws {
+        let request = try HTTPClient.Request(url: url, method: .HEAD)
+        let response = try self.client.httpClient.execute(request: request).wait()
+        XCTAssertEqual(.ok, response.status)
+    }
+
+    private func testOptions(path: String, expectedAllowedMethods: Set<String>) throws {
+        let request = try HTTPClient.Request(url: "\(self.url!)\(path)", method: .OPTIONS)
+        let response = try self.client.httpClient.execute(request: request).wait()
+
+        XCTAssertEqual(.ok, response.status)
+        XCTAssertNotNil(response.headers["Link"].first)
+
+        let allowedMethods = Set(response.headers["Allow"].first?.lowercased().split(separator: ",").map(String.init) ?? [])
+        XCTAssertEqual(expectedAllowedMethods, allowedMethods)
+    }
 
     private func createPackageReleases(scope: String, name: String, versions: [String]) throws {
         let futures: [EventLoopFuture<Void>] = versions.map { version in
@@ -323,6 +376,11 @@ private struct SourceArchiveMetadata: Codable {
     }
 }
 
+private struct Link {
+    public let relation: String
+    public let url: String
+}
+
 private struct StringError: Error {
     let message: String
 }
@@ -334,5 +392,18 @@ private extension HTTPClient.Response {
         }
         let responseData = Data(buffer: responseBody)
         return try JSONDecoder().decode(T.self, from: responseData)
+    }
+
+    func parseLinkHeader() -> [Link] {
+        (self.headers["Link"].first?.split(separator: ",") ?? []).compactMap {
+            let parts = $0.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ";")
+            guard parts.count == 2 else {
+                return nil
+            }
+
+            let url = parts[0].trimmingCharacters(in: .whitespacesAndNewlines).dropFirst(1).dropLast(1) // Remove < > from beginning and end
+            let rel = parts[1].trimmingCharacters(in: .whitespacesAndNewlines).dropFirst("rel=".count).dropFirst(1).dropLast(1) // Remove " from beginninng and end
+            return Link(relation: String(rel), url: String(url))
+        }
     }
 }

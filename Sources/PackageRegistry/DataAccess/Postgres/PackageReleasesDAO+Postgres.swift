@@ -133,6 +133,20 @@ extension PostgresDataAccess {
                     .unwrap(orError: DataAccessError.notFound)
             }
         }
+
+        func list(for package: PackageIdentity) async throws -> [PackageRegistryModel.PackageRelease] {
+            try await self.connectionPool.withConnectionThrowing { connection in
+                let packageReleases = try await connection.select()
+                    .column("*")
+                    .from(Self.tableName)
+                    // Case-insensitivity comparison
+                    .where(SQLFunction("lower", args: "scope"), .equal, SQLBind(package.scope.description.lowercased()))
+                    .where(SQLFunction("lower", args: "name"), .equal, SQLBind(package.name.description.lowercased()))
+                    .orderBy("created_at", .descending)
+                    .all(decoding: PackageRelease.self)
+                return try packageReleases.map { try $0.model() }
+            }
+        }
     }
 }
 

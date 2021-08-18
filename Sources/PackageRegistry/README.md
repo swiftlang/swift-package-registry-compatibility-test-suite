@@ -19,6 +19,25 @@ Features not implemented (and their corresponding section in the specification):
 - All `GET` endpoints support `HEAD` requests. (4)
 - All API paths support `OPTIONS` requests. (4)
 
+#### List package releases (`GET /{scope}/{name}`) (4.1)
+
+```bash
+curl http://localhost:9229/mona/LinkedList -i
+```
+
+`.json` extension in the request URL is supported:
+
+```bash
+curl http://localhost:9229/mona/LinkedList.json -i
+```
+
+- The server returns HTTP status `404` if the given package has not published any releases. In other words, this API never returns an empty list.
+- A deleted release will have `problem.status` set to `410`.
+- The `Link` HTTP header includes URLs to:
+  - The latest published release. Specifically, the package release with the most recent `created_at` timestamp in the database.
+  - The source repository URL if it is provided for the most recent release.
+- Pagination using the `Link` header is not supported. This implementation always returns **all** releases in the response.
+
 #### Create package release (`PUT /{scope}/{name}/{version}`) (4.6) 
 
 This API is in proposal stage: [SE-0321](https://github.com/apple/swift-evolution/blob/main/proposals/0321-package-registry-publish.md), [API specification update](https://github.com/apple/swift-evolution/pull/1424)

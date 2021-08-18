@@ -10,13 +10,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-extension Optional {
-    func unwrap(orError error: Error) throws -> Wrapped {
-        switch self {
-        case .some(let value):
-            return value
-        case .none:
-            throw error
+import Foundation
+
+public struct PackageReleasesResponse: Codable {
+    public let releases: [String: ReleaseInfo]
+
+    public init(releases: [String: ReleaseInfo]) {
+        self.releases = releases
+    }
+
+    public struct ReleaseInfo: Codable {
+        public let url: String
+        public let problem: ProblemDetails?
+
+        public init(url: String, problem: ProblemDetails?) {
+            self.url = url
+            self.problem = problem
         }
     }
 }

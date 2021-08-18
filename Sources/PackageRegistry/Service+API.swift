@@ -42,18 +42,21 @@ extension PackageRegistry {
             self.vapor.routes.get("__health", use: healthController.health)
 
             let createController = CreatePackageReleaseController(configuration: configuration, dataAccess: dataAccess)
-            let packageReleasesController = PackageReleasesController(dataAccess: dataAccess)
+            let packageReleasesController = PackageReleasesController(configuration: configuration, dataAccess: dataAccess)
 
             // APIs
             let apiMiddleware: [Middleware] = [MetricsMiddleware(), APIVersionMiddleware()]
             let apiRoutes = self.vapor.routes.grouped(apiMiddleware)
+
+            // 4.1 GET /{scope}/{name} - list package releases
+            apiRoutes.get(":scope", ":name", use: packageReleasesController.listForPackage)
 
             // FIXME: publish endpoint should require auth
             // 4.6 PUT /{scope}/{name}/{version} - create package release
             apiRoutes.on(.PUT, ":scope", ":name", ":version", body: .collect(maxSize: "10mb"), use: createController.pushPackageRelease)
 
             // FIXME: delete endpoint should require auth
-            // 4.7 DELETE /{scope}/{name}/{version} - delete package release
+            // DELETE /{scope}/{name}/{version} - delete package release
             apiRoutes.delete(":scope", ":name", ":version", use: packageReleasesController.delete)
 
             // 4 A server should support `OPTIONS` requests

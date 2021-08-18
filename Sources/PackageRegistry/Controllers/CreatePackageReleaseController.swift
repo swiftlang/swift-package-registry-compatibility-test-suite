@@ -38,40 +38,12 @@ struct CreatePackageReleaseController {
     }
 
     func pushPackageRelease(request: Request) async throws -> Response {
-        guard let scopeString = request.parameters.get("scope") else {
-            throw PackageRegistry.APIError.badRequest("Invalid path: missing 'scope'")
-        }
-        // Validate scope
-        let scope: PackageModel.PackageIdentity.Scope
-        do {
-            scope = try PackageModel.PackageIdentity.Scope(validating: scopeString)
-        } catch {
-            throw PackageRegistry.APIError.badRequest("Invalid scope '\(scopeString)': \(error)")
-        }
-
-        guard let nameString = request.parameters.get("name") else {
-            throw PackageRegistry.APIError.badRequest("Invalid path: missing 'name'")
-        }
-        // Validate name
-        let name: PackageModel.PackageIdentity.Name
-        do {
-            name = try PackageModel.PackageIdentity.Name(validating: nameString)
-        } catch {
-            throw PackageRegistry.APIError.badRequest("Invalid name '\(nameString)': \(error)")
-        }
-
-        guard let versionString = request.parameters.get("version") else {
-            throw PackageRegistry.APIError.badRequest("Invalid path: missing 'version'")
-        }
-        guard let version = Version(versionString) else {
-            throw PackageRegistry.APIError.badRequest("Invalid version: '\(versionString)'")
-        }
+        let package = try request.getPackageParam(validating: true)
+        let version = try request.getVersionParam(removingExtension: ".zip")
 
         guard let requestBody = request.body.string else {
             throw PackageRegistry.APIError.badRequest("Missing request body")
         }
-
-        let package = PackageIdentity(scope: scope, name: name)
 
         do {
             _ = try await self.packageReleases.get(package: package, version: version)
@@ -101,14 +73,14 @@ struct CreatePackageReleaseController {
             )
 
             let response = CreatePackageReleaseResponse(
-                scope: scope.description,
-                name: name.description,
+                scope: package.scope.description,
+                name: package.name.description,
                 version: version.description,
                 metadata: metadata,
                 checksum: checksum
             )
 
-            let location = "\(self.configuration.api.baseURL)/\(scope)/\(name)/\(version)"
+            let location = "\(self.configuration.api.baseURL)/\(package.scope)/\(package.name)/\(version)"
             var headers = HTTPHeaders()
             headers.replaceOrAdd(name: .location, value: location)
 
