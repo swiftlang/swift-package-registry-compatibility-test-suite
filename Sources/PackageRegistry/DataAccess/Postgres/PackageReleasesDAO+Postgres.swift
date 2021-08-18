@@ -12,8 +12,6 @@
 
 import Foundation
 
-import _NIOConcurrency
-import NIO
 import PackageModel
 import PostgresKit
 import TSCUtility
@@ -43,41 +41,33 @@ extension PostgresDataAccess {
                     manifests: [(SwiftLanguageVersion?, String, ToolsVersion, Data)]) async throws -> CreateResult {
             try await self.connectionPool.withConnectionThrowing { connection in
                 // Insert into three tables, commit iff all succeed
-                connection.query("BEGIN;").flatMap { _ -> EventLoopFuture<CreateResult> in
-                    let promise = connection.eventLoop.makePromise(of: CreateResult.self)
-                    Task.detached {
-                        do {
-                            // package_resources
-                            let packageResource = try await self.packageResources.create(package: package, version: version, type: .sourceArchive,
-                                                                                         checksum: checksum, bytes: sourceArchive)
-                            // package_manifests
-                            let packageManifests: [PackageRegistryModel.PackageManifest] =
-                                try await withThrowingTaskGroup(of: PackageRegistryModel.PackageManifest.self) { group in
-                                    var packageManifests = [PackageRegistryModel.PackageManifest]()
-                                    for manifest in manifests {
-                                        group.addTask {
-                                            try await self.packageManifests.create(package: package, version: version, swiftVersion: manifest.0,
-                                                                                   filename: manifest.1, swiftToolsVersion: manifest.2, bytes: manifest.3)
-                                        }
-                                    }
-                                    while let manifest = try await group.next() {
-                                        packageManifests.append(manifest)
-                                    }
-                                    return packageManifests
-                                }
-                            // package_releases
-                            let packageRelease = try await self.create(package: package, version: version, repositoryURL: repositoryURL, commitHash: commitHash)
+                _ = try await connection.query("BEGIN;")
 
-                            connection.query("COMMIT;").map { _ in
-                                (packageRelease, packageResource, packageManifests)
-                            }.cascade(to: promise)
-                        } catch {
-                            promise.fail(error)
+                // package_resources
+                let packageResource = try await self.packageResources.create(package: package, version: version, type: .sourceArchive,
+                                                                             checksum: checksum, bytes: sourceArchive)
+                // package_manifests
+                let packageManifests: [PackageRegistryModel.PackageManifest] =
+                    try await withThrowingTaskGroup(of: PackageRegistryModel.PackageManifest.self) { group in
+                        var packageManifests = [PackageRegistryModel.PackageManifest]()
+                        for manifest in manifests {
+                            group.addTask {
+                                try await self.packageManifests.create(package: package, version: version, swiftVersion: manifest.0,
+                                                                       filename: manifest.1, swiftToolsVersion: manifest.2, bytes: manifest.3)
+                            }
                         }
+                        while let manifest = try await group.next() {
+                            packageManifests.append(manifest)
+                        }
+                        return packageManifests
                     }
-                    return promise.futureResult
-                }
-            }.get()
+                // package_releases
+                let packageRelease = try await self.create(package: package, version: version, repositoryURL: repositoryURL, commitHash: commitHash)
+
+                _ = try await connection.query("COMMIT;")
+
+                return (packageRelease, packageResource, packageManifests)
+            }
         }
 
         func create(package: PackageIdentity,
@@ -93,12 +83,11 @@ extension PostgresDataAccess {
                                                     status: PackageRegistryModel.PackageRelease.Status.published.rawValue,
                                                     created_at: Date(),
                                                     updated_at: Date())
-                return try connection
-                    .insert(into: Self.tableName)
+                try await connection.insert(into: Self.tableName)
                     .model(packageRelease)
                     .run()
-                    .flatMapThrowing { try packageRelease.model() }
-            }.get()
+                return try packageRelease.model()
+            }
         }
 
         func get(package: PackageIdentity, version: Version) async throws -> PackageRegistryModel.PackageRelease {
@@ -106,17 +95,17 @@ extension PostgresDataAccess {
         }
 
         private func fetch(package: PackageIdentity, version: Version) async throws -> PackageRelease {
-            try await self.connectionPool.withConnection { connection in
-                connection.select()
+            try await self.connectionPool.withConnectionThrowing { connection in
+                try await connection.select()
                     .column("*")
                     .from(Self.tableName)
-                    // Case-insensitity comparison
+                    // Case-insensivity comparison
                     .where(SQLFunction("lower", args: "scope"), .equal, SQLBind(package.scope.description.lowercased()))
                     .where(SQLFunction("lower", args: "name"), .equal, SQLBind(package.name.description.lowercased()))
                     .where(SQLFunction("lower", args: "version"), .equal, SQLBind(version.description.lowercased()))
                     .first(decoding: PackageRelease.self)
                     .unwrap(orError: DataAccessError.notFound)
-            }.get()
+            }
         }
     }
 }

@@ -1,7 +1,7 @@
 # Swift Package Registry Service
 
 This is a reference implementation of [Swift Package Registry Service](https://github.com/apple/swift-package-manager/blob/main/Documentation/Registry.md),
-proposed in [SE-0292](https://github.com/apple/swift-evolution/blob/main/proposals/0292-package-registry-service.md).
+proposed in [SE-0292](https://github.com/apple/swift-evolution/blob/main/proposals/0292-package-registry-service.md) and [SE-0321](https://github.com/apple/swift-evolution/blob/main/proposals/0321-package-registry-publish.md).
 
 :warning: This implementation is intended for local development and testing usages only. It is **NOT** production-ready.
 
@@ -21,7 +21,7 @@ Features not implemented (and their corresponding section in the specification):
 
 #### Create package release (`PUT /{scope}/{name}/{version}`) (4.6) 
 
-This API is in proposal stage: [pitch](https://forums.swift.org/t/package-registry-service-publish-endpoint/51067), [API specification update](https://github.com/apple/swift-evolution/pull/1424)
+This API is in proposal stage: [SE-0321](https://github.com/apple/swift-evolution/blob/main/proposals/0321-package-registry-publish.md), [API specification update](https://github.com/apple/swift-evolution/pull/1424)
 
 - Package `scope` and `name` are validated according to section 3.6 of the specification. 
 - The source archive being published should be generated using the `package archive-source` command.

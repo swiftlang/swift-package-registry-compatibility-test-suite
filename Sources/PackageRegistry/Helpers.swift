@@ -33,3 +33,14 @@ func parseAcceptHeader(_ acceptHeader: String?) -> (apiVersion: String?, mediaTy
     let mediaType = Range(match.range(at: 4), in: header).map { String(header[$0]) }
     return (apiVersion, mediaType)
 }
+
+extension Optional {
+    func unwrap(orError error: Error) throws -> Wrapped {
+        switch self {
+        case .some(let value):
+            return value
+        case .none:
+            throw error
+        }
+    }
+}

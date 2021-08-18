@@ -12,7 +12,6 @@
 
 import Foundation
 
-import _NIOConcurrency
 import PostgresKit
 import TSCUtility
 
@@ -38,12 +37,11 @@ extension PostgresDataAccess {
                                                       type: type.rawValue,
                                                       checksum: checksum,
                                                       bytes: bytes)
-                return try connection
-                    .insert(into: Self.tableName)
+                try await connection.insert(into: Self.tableName)
                     .model(packageResource)
                     .run()
-                    .flatMapThrowing { try packageResource.model() }
-            }.get()
+                return try packageResource.model()
+            }
         }
     }
 }

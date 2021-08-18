@@ -12,7 +12,6 @@
 
 import Foundation
 
-import _NIOConcurrency
 import PackageModel
 import PostgresKit
 import TSCUtility
@@ -41,12 +40,11 @@ extension PostgresDataAccess {
                                                       filename: filename,
                                                       swift_tools_version: swiftToolsVersion.description,
                                                       bytes: bytes)
-                return try connection
-                    .insert(into: Self.tableName)
+                try await connection.insert(into: Self.tableName)
                     .model(packageManifest)
                     .run()
-                    .flatMapThrowing { try packageManifest.model() }
-            }.get()
+                return try packageManifest.model()
+            }
         }
     }
 }
