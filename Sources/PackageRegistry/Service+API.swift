@@ -44,6 +44,7 @@ extension PackageRegistry {
             let createController = CreatePackageReleaseController(configuration: configuration, dataAccess: dataAccess)
             let packageReleasesController = PackageReleasesController(configuration: configuration, dataAccess: dataAccess)
             let packageManifestsController = PackageManifestsController(configuration: configuration, dataAccess: dataAccess)
+            let packageResourcesController = PackageResourcesController(dataAccess: dataAccess)
 
             // APIs
             let apiMiddleware: [Middleware] = [MetricsMiddleware(), APIVersionMiddleware()]
@@ -60,8 +61,7 @@ extension PackageRegistry {
 
                 if version.hasSuffix(".zip", caseSensitive: false) {
                     // 4.4 GET /{scope}/{name}/{version}.zip - download source archive for a package release
-                    // return try packageArchivesController.download(request: request)
-                    throw PackageRegistry.APIError.badRequest("Unsupported API") // TODO:
+                    return try await packageResourcesController.downloadSourceArchive(request: request)
                 } else {
                     // 4.2 GET /{scope}/{name}/{version} - fetch information about a package release
                     return try await packageReleasesController.fetchPackageReleaseInfo(request: request)

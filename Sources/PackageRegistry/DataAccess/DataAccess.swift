@@ -49,7 +49,9 @@ protocol PackageResourcesDAO {
                 checksum: String,
                 bytes: Data) async throws -> PackageRegistryModel.PackageResource
 
-    func get(package: PackageIdentity, version: Version) async throws -> PackageRegistryModel.PackageResource
+    func get(package: PackageIdentity,
+             version: Version,
+             type: PackageRegistryModel.PackageResourceType) async throws -> PackageRegistryModel.PackageResource
 }
 
 protocol PackageManifestsDAO {

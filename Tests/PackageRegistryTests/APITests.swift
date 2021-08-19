@@ -14,6 +14,7 @@ import Foundation
 import XCTest
 
 import AsyncHTTPClient
+import Crypto
 import NIO
 import NIOHTTP1
 import PackageRegistryClient
@@ -245,7 +246,6 @@ final class BasicAPITests: XCTestCase {
     // MARK: - List package releases
 
     func testListPackageReleases() throws {
-        // Create some releases for querying
         let scope = "apple-\(UUID().uuidString.prefix(6))"
         let name = "swift-nio"
         let versions = ["1.14.2", "2.29.0", "2.30.0"]
@@ -298,7 +298,6 @@ final class BasicAPITests: XCTestCase {
     // MARK: - Fetch information about a package release
 
     func testFetchPackageReleaseInfo() throws {
-        // Create some releases for querying
         let scope = "apple-\(UUID().uuidString.prefix(6))"
         let name = "swift-nio"
         let versions = ["1.14.2", "2.29.0", "2.30.0"]
@@ -353,13 +352,12 @@ final class BasicAPITests: XCTestCase {
     }
 
     func testFetchPackageReleaseInfo_deletedRelease() throws {
-        // Create the package release
         let scope = "apple-\(UUID().uuidString.prefix(6))"
         let name = "swift-nio"
         let versions = ["1.14.2"]
         try self.createPackageReleases(scope: scope, name: name, versions: versions)
 
-        // Delete it
+        // Delete the package release
         do {
             let response = try self.client.httpClient.delete(url: "\(self.url!)/\(scope)/\(name)/\(versions[0])").wait()
             XCTAssertEqual(.noContent, response.status)
@@ -377,7 +375,6 @@ final class BasicAPITests: XCTestCase {
     }
 
     func testFetchPackageReleaseInfo_unknownPackage() throws {
-        // Create the package release
         let scope = "test-\(UUID().uuidString.prefix(6))"
 
         let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/unknown/1.0.0").wait()
@@ -412,7 +409,6 @@ final class BasicAPITests: XCTestCase {
     // MARK: - Fetch package release manifest
 
     func testFetchPackageReleaseManifest() throws {
-        // Create the package release
         let scope = "sunshinejr-\(UUID().uuidString.prefix(6))"
         let name = "SwiftyUserDefaults"
         let versions = ["5.3.0"]
@@ -469,7 +465,6 @@ final class BasicAPITests: XCTestCase {
     }
 
     func testFetchPackageReleaseManifest_redirectIfVersionedManifestNotFound() throws {
-        // Create the package release
         let scope = "sunshinejr-\(UUID().uuidString.prefix(6))"
         let name = "SwiftyUserDefaults"
         let versions = ["5.3.0"]
@@ -489,13 +484,12 @@ final class BasicAPITests: XCTestCase {
     }
 
     func testFetchPackageReleaseManifest_deletedRelease() throws {
-        // Create the package release
         let scope = "sunshinejr-\(UUID().uuidString.prefix(6))"
         let name = "SwiftyUserDefaults"
         let versions = ["5.3.0"]
         try self.createPackageReleases(scope: scope, name: name, versions: versions)
 
-        // Delete it
+        // Delete the package release
         do {
             let response = try self.client.httpClient.delete(url: "\(self.url!)/\(scope)/\(name)/\(versions[0])").wait()
             XCTAssertEqual(.noContent, response.status)
@@ -513,7 +507,6 @@ final class BasicAPITests: XCTestCase {
     }
 
     func testFetchPackageReleaseManifest_unknownPackage() throws {
-        // Create the package release
         let scope = "test-\(UUID().uuidString.prefix(6))"
 
         let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/unknown/1.0.0/Package.swift").wait()
@@ -535,6 +528,98 @@ final class BasicAPITests: XCTestCase {
         try self.createPackageReleases(scope: scope, name: name, versions: versions)
 
         let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/\(name)/1.0.0/Package.swift").wait() // 1.0.0 does not exist
+        XCTAssertEqual(.notFound, response.status)
+        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+            return XCTFail("ProblemDetails should not be nil")
+        }
+        XCTAssertEqual(HTTPResponseStatus.notFound.code, problemDetails.status)
+    }
+
+    // MARK: - Download source archive
+
+    func testDownloadSourceArchive() throws {
+        let scope = "apple-\(UUID().uuidString.prefix(6))"
+        let name = "swift-service-discovery"
+        let versions = ["1.0.0"]
+        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+
+        // Case-insensitivity
+        let urls = ["\(self.url!)/\(scope)/\(name)/1.0.0.zip", "\(self.url!)/\(scope)/\(name.uppercased())/1.0.0.zip"]
+        try urls.forEach {
+            try self.testHead(url: $0)
+
+            let response = try self.client.httpClient.get(url: $0).wait()
+            XCTAssertEqual(.ok, response.status)
+            XCTAssertEqual("bytes", response.headers["Accept-Ranges"].first)
+            XCTAssertEqual("public, immutable", response.headers["Cache-Control"].first)
+            XCTAssertEqual("application/zip", response.headers["Content-Type"].first)
+            XCTAssertEqual("attachment; filename=\"\(name)-1.0.0.zip\"".lowercased, response.headers["Content-Disposition"].first?.lowercased())
+            XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+            guard let responseBody = response.body, responseBody.readableBytes > 0 else {
+                return XCTFail("Response body is empty")
+            }
+            XCTAssertEqual(responseBody.readableBytes, response.headers["Content-Length"].first.map { Int(String($0)) ?? -1 })
+
+            guard let digest = response.parseDigestHeader() else {
+                return XCTFail("Missing 'Digest' header")
+            }
+            XCTAssertEqual("sha-256", digest.algorithm)
+
+            let responseData = Data(buffer: responseBody)
+            let checksum = Data(SHA256.hash(data: responseData)).base64EncodedString()
+            XCTAssertEqual(checksum, digest.checksum)
+        }
+    }
+
+    func testDownloadSourceArchive_deletedRelease() throws {
+        let scope = "apple-\(UUID().uuidString.prefix(6))"
+        let name = "swift-service-discovery"
+        let versions = ["1.0.0"]
+        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+
+        // Delete the package release
+        do {
+            let response = try self.client.httpClient.delete(url: "\(self.url!)/\(scope)/\(name)/\(versions[0])").wait()
+            XCTAssertEqual(.noContent, response.status)
+        }
+
+        let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/\(name)/\(versions[0]).zip").wait()
+        XCTAssertEqual(.gone, response.status)
+        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+            return XCTFail("ProblemDetails should not be nil")
+        }
+        XCTAssertEqual(HTTPResponseStatus.gone.code, problemDetails.status)
+    }
+
+    func testDownloadSourceArchive_unknownPackage() throws {
+        let scope = "test-\(UUID().uuidString.prefix(6))"
+
+        let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/unknown/1.0.0.zip").wait()
+        XCTAssertEqual(.notFound, response.status)
+        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+            return XCTFail("ProblemDetails should not be nil")
+        }
+        XCTAssertEqual(HTTPResponseStatus.notFound.code, problemDetails.status)
+    }
+
+    func testDownloadSourceArchive_unknownPackageRelease() throws {
+        // Create some release for the package
+        let scope = "apple-\(UUID().uuidString.prefix(6))"
+        let name = "swift-service-discovery"
+        let versions = ["1.0.0"]
+        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+
+        let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/\(name)/0.0.1.zip").wait() // 0.0.1 does not exist
         XCTAssertEqual(.notFound, response.status)
         XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
         XCTAssertEqual("1", response.headers["Content-Version"].first)
@@ -629,8 +714,13 @@ private struct SourceArchiveMetadata: Codable {
 }
 
 private struct Link {
-    public let relation: String
-    public let url: String
+    let relation: String
+    let url: String
+}
+
+private struct Digest {
+    let algorithm: String
+    let checksum: String
 }
 
 private struct StringError: Error {
@@ -657,5 +747,20 @@ private extension HTTPClient.Response {
             let rel = parts[1].trimmingCharacters(in: .whitespacesAndNewlines).dropFirst("rel=".count).dropFirst(1).dropLast(1) // Remove " from beginninng and end
             return Link(relation: String(rel), url: String(url))
         }
+    }
+
+    func parseDigestHeader() -> Digest? {
+        guard let digestHeader = self.headers["Digest"].first else {
+            return nil
+        }
+
+        let parts = digestHeader.split(separator: "=", maxSplits: 1)
+        guard parts.count == 2 else {
+            return nil
+        }
+
+        let algorithm = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        let checksum = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        return Digest(algorithm: algorithm, checksum: checksum)
     }
 }

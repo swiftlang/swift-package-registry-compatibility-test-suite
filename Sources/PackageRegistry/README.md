@@ -73,6 +73,18 @@ curl http://localhost:9229/mona/LinkedList/0.0.1/Package.swift -i
   curl http://localhost:9229/mona/LinkedList/0.0.1/Package.swift?swift-version=4.2 -iL
 ```  
 
+#### Download source archive for a package release (`GET /{scope}/{name}/{version}.zip`) (4.4)
+
+```bash
+curl http://localhost:9229/mona/LinkedList/0.0.1.zip
+```
+
+- The `.zip` extension is required.
+- The server returns HTTP status `410` if the package release has been deleted.
+- The server sets the `Accept-Ranges`, `Cache-Control`, `Content-Type`, `Content-Disposition`, `Content-Length`, `Digest` etc. HTTP headers. 
+- Since this implementation does not support mirrors or alternative download locations, the `Link` header is not set.
+- Client should use the `Digest` response header to verify the download, but to verify the integrity of the downloaded source archive, use `checksum` value of the associated `source-archive` resource in the `GET /{scope}/{name}/{version}` response.
+
 #### Create package release (`PUT /{scope}/{name}/{version}`) (4.6) 
 
 This API is in proposal stage: [SE-0321](https://github.com/apple/swift-evolution/blob/main/proposals/0321-package-registry-publish.md), [API specification update](https://github.com/apple/swift-evolution/pull/1424)

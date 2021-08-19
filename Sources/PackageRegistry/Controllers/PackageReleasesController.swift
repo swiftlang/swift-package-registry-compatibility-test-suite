@@ -72,7 +72,7 @@ struct PackageReleasesController {
 
         let sourceArchive: PackageRegistryModel.PackageResource?
         do {
-            sourceArchive = try await self.packageResources.get(package: package, version: version)
+            sourceArchive = try await self.packageResources.get(package: package, version: version, type: .sourceArchive)
         } catch DataAccessError.notFound {
             sourceArchive = nil
         } catch {
