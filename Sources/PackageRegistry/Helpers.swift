@@ -20,3 +20,16 @@ extension Optional {
         }
     }
 }
+
+// For some APIs client may append .json extension to the request URI
+func dropDotJSONExtension(_ s: String) -> String {
+    dropDotExtension(".json", from: s)
+}
+
+func dropDotExtension(_ dotExtension: String, from s: String) -> String {
+    if s.hasSuffix(dotExtension) {
+        return String(s.dropLast(dotExtension.count))
+    } else {
+        return s
+    }
+}

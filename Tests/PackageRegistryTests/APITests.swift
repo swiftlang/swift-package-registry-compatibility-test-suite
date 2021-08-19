@@ -189,6 +189,59 @@ final class BasicAPITests: XCTestCase {
         XCTAssertEqual(HTTPResponseStatus.unprocessableEntity.code, problemDetails.status)
     }
 
+    // MARK: - Delete package release tests
+
+    func testDeletePackageRelease() throws {
+        let scope = "apple-\(UUID().uuidString.prefix(6))"
+        let name = "swift-service-discovery"
+        let versions = ["1.0.0"]
+        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+
+        let response = try self.client.httpClient.delete(url: "\(self.url!)/\(scope)/\(name)/\(versions[0])").wait()
+        XCTAssertEqual(.noContent, response.status)
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+    }
+
+    func testDeletePackageRelease_notFound() throws {
+        let scope = "apple-\(UUID().uuidString.prefix(6))"
+
+        let response = try self.client.httpClient.delete(url: "\(self.url!)/\(scope)/unknown/1.0.0").wait()
+        XCTAssertEqual(.notFound, response.status)
+        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+            return XCTFail("ProblemDetails should not be nil")
+        }
+        XCTAssertEqual(HTTPResponseStatus.notFound.code, problemDetails.status)
+    }
+
+    func testDeletePackageRelease_alreadyDeleted() throws {
+        let scope = "apple-\(UUID().uuidString.prefix(6))"
+        let name = "swift-service-discovery"
+        let versions = ["1.0.0"]
+        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+
+        // First delete should be ok (with .zip)
+        do {
+            let response = try self.client.httpClient.delete(url: "\(self.url!)/\(scope)/\(name)/\(versions[0]).zip").wait()
+            XCTAssertEqual(.noContent, response.status)
+        }
+
+        // Package scope and name are case-insensitive, so delete release again with uppercased name should fail.
+        let nameUpper = name.uppercased()
+        let response = try self.client.httpClient.delete(url: "\(self.url!)/\(scope)/\(nameUpper)/\(versions[0])").wait()
+
+        XCTAssertEqual(.gone, response.status)
+        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+            return XCTFail("ProblemDetails should not be nil")
+        }
+        XCTAssertEqual(HTTPResponseStatus.gone.code, problemDetails.status)
+    }
+
     // MARK: - info and health endpoints
 
     func testInfo() throws {
@@ -197,7 +250,7 @@ final class BasicAPITests: XCTestCase {
     }
 
     func testHealth() throws {
-        let response = try self.client.httpClient.get(url: self.url + "/__health").wait()
+        let response = try self.client.httpClient.get(url: "\(self.url!)/__health").wait()
         XCTAssertEqual(.ok, response.status)
     }
 
@@ -213,6 +266,47 @@ final class BasicAPITests: XCTestCase {
         let allowedMethods = Set(response.headers["Allow"].first?.lowercased().split(separator: ",").map(String.init) ?? [])
         let expectedAllowedMethods: Set<String> = ["get", "put", "delete"]
         XCTAssertEqual(expectedAllowedMethods, allowedMethods)
+    }
+
+    func testOptions_scopeNameVersionDotZip() throws {
+        let request = try HTTPClient.Request(url: self.url + "/scope/name/version.zip", method: .OPTIONS)
+        let response = try self.client.httpClient.execute(request: request).wait()
+
+        XCTAssertEqual(.ok, response.status)
+        XCTAssertNotNil(response.headers["Link"].first)
+
+        let allowedMethods = Set(response.headers["Allow"].first?.lowercased().split(separator: ",").map(String.init) ?? [])
+        let expectedAllowedMethods: Set<String> = ["get", "delete"]
+        XCTAssertEqual(expectedAllowedMethods, allowedMethods)
+    }
+
+    // MARK: - Helpers
+
+    private func createPackageReleases(scope: String, name: String, versions: [String]) throws {
+        let futures: [EventLoopFuture<Void>] = versions.map { version in
+            guard let archiveMetadata = self.sourceArchives.first(where: { $0.name == name && $0.version == version }) else {
+                return client.eventLoopGroup.next().makeFailedFuture(StringError(message: "Source archive not found"))
+            }
+
+            let archiveURL = URL(fileURLWithPath: #file).deletingLastPathComponent()
+                .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent(archiveMetadata.filename)
+            do {
+                let archive = try Data(contentsOf: archiveURL)
+                let repositoryURL = archiveMetadata.repositoryURL.replacingOccurrences(of: archiveMetadata.scope, with: scope)
+                let metadata = PackageReleaseMetadata(repositoryURL: repositoryURL, commitHash: archiveMetadata.commitHash)
+
+                return self.client.createPackageRelease(scope: scope,
+                                                        name: name,
+                                                        version: version,
+                                                        sourceArchive: archive,
+                                                        metadata: metadata,
+                                                        deadline: NIODeadline.now() + .seconds(10)).map { _ in }
+            } catch {
+                return client.eventLoopGroup.next().makeFailedFuture(error)
+            }
+        }
+
+        try EventLoopFuture.andAllSucceed(futures, on: self.client.eventLoopGroup.next()).wait()
     }
 }
 

@@ -34,6 +34,25 @@ This API is in proposal stage: [SE-0321](https://github.com/apple/swift-evolutio
 - A published package release cannot be modified.
 - If the package release already exists, the server returns HTTP status `409`.
 
+#### Delete package release (`DELETE /{scope}/{name}/{version}`)
+
+This endpoint is not defined in the API specification. 
+
+```bash
+curl http://localhost:9229/mona/LinkedList/0.0.1 -XDELETE -i
+```
+
+`.zip` extension in the request URL is supported:
+
+```bash
+curl http://localhost:9229/mona/LinkedList/0.0.1.zip -XDELETE -i
+```
+
+- The server does **soft** delete. Only the package release's `status` gets updated; no data is actually removed from the database.
+- The server returns HTTP status `204` upon successful deletion. If the release does not exist, status `404` is returned. If the release has already been removed, status `410` is returned. 
+- Once deleted, the server does not allow the same package version to be published again.
+- Requests to retrieve source archives, manifests, and metadata for a deleted package release would result in HTTP status `410`.
+
 ### Database schema
 
 There are primarily three tables in the Postgres database, all populated via the "create package release" API.
@@ -124,5 +143,5 @@ postgres-# \c <DATABASE_NAME>
 ## Run Tests
 
 ```bash
-docker-compose -f docker/docker-compose.yml -f docker/docker-compose.1804.54.yml run test-registry
+docker-compose -f docker/docker-compose.yml -f docker/docker-compose.2004.55.yml run test-registry
 ```

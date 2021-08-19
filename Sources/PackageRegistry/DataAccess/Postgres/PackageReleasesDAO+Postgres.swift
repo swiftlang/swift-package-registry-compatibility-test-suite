@@ -94,6 +94,32 @@ extension PostgresDataAccess {
             try await self.fetch(package: package, version: version).model()
         }
 
+        func delete(package: PackageIdentity, version: Version) async throws {
+            let packageRelease = try await self.fetch(package: package, version: version)
+
+            guard packageRelease.status != PackageRegistryModel.PackageRelease.Status.deleted.rawValue else {
+                throw DataAccessError.noChange
+            }
+
+            try await self.connectionPool.withConnectionThrowing { connection in
+                let packageRelease = PackageRelease(scope: packageRelease.scope,
+                                                    name: packageRelease.name,
+                                                    version: packageRelease.version,
+                                                    repository_url: packageRelease.repository_url,
+                                                    commit_hash: packageRelease.commit_hash,
+                                                    status: PackageRegistryModel.PackageRelease.Status.deleted.rawValue,
+                                                    created_at: packageRelease.created_at,
+                                                    updated_at: Date())
+                try await connection.update(Self.tableName)
+                    .set(model: packageRelease)
+                    // `packageRelease` holds actual database values, so there's no need to worry about case-insensitivity
+                    .where("scope", .equal, SQLBind(packageRelease.scope))
+                    .where("name", .equal, SQLBind(packageRelease.name))
+                    .where("version", .equal, SQLBind(packageRelease.version))
+                    .run()
+            }
+        }
+
         private func fetch(package: PackageIdentity, version: Version) async throws -> PackageRelease {
             try await self.connectionPool.withConnectionThrowing { connection in
                 try await connection.select()

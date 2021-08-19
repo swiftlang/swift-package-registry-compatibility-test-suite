@@ -38,7 +38,7 @@ public struct PackageRegistryClient {
         self.client
     }
 
-    var eventLoopGroup: EventLoopGroup {
+    public var eventLoopGroup: EventLoopGroup {
         self.eventLoopGroupContainer.value
     }
 

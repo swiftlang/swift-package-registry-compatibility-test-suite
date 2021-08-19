@@ -13,7 +13,6 @@
 import struct Foundation.Data
 
 import MultipartKit
-import NIO
 import NIOHTTP1
 import PackageModel
 import PackageRegistryModels
