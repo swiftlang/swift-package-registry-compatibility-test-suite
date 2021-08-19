@@ -51,6 +51,22 @@ extension PackageRegistry {
             // 4.1 GET /{scope}/{name} - list package releases
             apiRoutes.get(":scope", ":name", use: packageReleasesController.listForPackage)
 
+            // 4.2 and 4.4
+            apiRoutes.get(":scope", ":name", ":version") { request async throws -> Response in
+                guard let version = request.parameters.get("version") else {
+                    throw PackageRegistry.APIError.badRequest("Invalid path: missing 'version'")
+                }
+
+                if version.hasSuffix(".zip", caseSensitive: false) {
+                    // 4.4 GET /{scope}/{name}/{version}.zip - download source archive for a package release
+                    // return try packageArchivesController.download(request: request)
+                    throw PackageRegistry.APIError.badRequest("Unsupported API") // TODO:
+                } else {
+                    // 4.2 GET /{scope}/{name}/{version} - fetch information about a package release
+                    return try await packageReleasesController.fetchPackageReleaseInfo(request: request)
+                }
+            }
+
             // FIXME: publish endpoint should require auth
             // 4.6 PUT /{scope}/{name}/{version} - create package release
             apiRoutes.on(.PUT, ":scope", ":name", ":version", body: .collect(maxSize: "10mb"), use: createController.pushPackageRelease)
@@ -66,9 +82,12 @@ extension PackageRegistry {
                     throw PackageRegistry.APIError.badRequest("Invalid path: missing 'version'")
                 }
 
-                // Download source archive (GET) or delete package release (DELETE)
-                if version.hasSuffix(".zip") {
+                if version.hasSuffix(".zip", caseSensitive: false) {
+                    // Download source archive (GET) or delete package release (DELETE)
                     return makeOptionsRequestHandler(allowMethods: [.GET, .DELETE])(request)
+                } else if version.hasSuffix(".json", caseSensitive: false) {
+                    // Fetch information about a package release
+                    return makeOptionsRequestHandler(allowMethods: [.GET])(request)
                 }
 
                 // Else it could be one of:
@@ -114,6 +133,8 @@ extension PackageRegistry {
     enum APIError: Error {
         case badRequest(String)
         case unprocessableEntity(String)
+        case resourceGone(String)
+        case serverError(String)
     }
 }
 
@@ -135,6 +156,10 @@ extension PackageRegistry.API {
                 response = Response.jsonError(status: .badRequest, detail: detail)
             case PackageRegistry.APIError.unprocessableEntity(let detail):
                 response = Response.jsonError(status: .unprocessableEntity, detail: detail)
+            case PackageRegistry.APIError.resourceGone(let detail):
+                response = Response.jsonError(status: .gone, detail: detail)
+            case PackageRegistry.APIError.serverError(let detail):
+                response = Response.jsonError(status: .internalServerError, detail: detail)
             default:
                 response = Response.jsonError(status: .internalServerError, detail: "The server has encountered an error. Please check logs for details.")
             }

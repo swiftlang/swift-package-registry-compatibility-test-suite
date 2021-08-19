@@ -62,7 +62,7 @@ extension Request {
 
         let sanitizedNameString: String
         if let removingExtension = removingExtension {
-            sanitizedNameString = dropDotExtension(removingExtension, from: nameString)
+            sanitizedNameString = nameString.dropDotExtension(removingExtension)
         } else {
             sanitizedNameString = nameString
         }
@@ -97,7 +97,7 @@ extension Request {
 
         let sanitizedVersionString: String
         if let removingExtension = removingExtension {
-            sanitizedVersionString = dropDotExtension(removingExtension, from: versionString)
+            sanitizedVersionString = versionString.dropDotExtension(removingExtension)
         } else {
             sanitizedVersionString = versionString
         }
@@ -106,17 +106,6 @@ extension Request {
             throw PackageRegistry.APIError.badRequest("Invalid version: '\(sanitizedVersionString)'")
         }
         return version
-    }
-}
-
-private func dropDotExtension(_ dotExtension: String, from s: String) -> String {
-    let lowercasedString = s.lowercased()
-    let lowercasedExtension = dotExtension.lowercased()
-
-    if lowercasedString.hasSuffix(lowercasedExtension) {
-        return String(s.dropLast(dotExtension.count))
-    } else {
-        return s
     }
 }
 

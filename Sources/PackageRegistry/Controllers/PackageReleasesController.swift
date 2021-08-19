@@ -17,11 +17,14 @@ import Vapor
 
 struct PackageReleasesController {
     private let configuration: PackageRegistry.Configuration
+
     private let packageReleases: PackageReleasesDAO
+    private let packageResources: PackageResourcesDAO
 
     init(configuration: PackageRegistry.Configuration, dataAccess: DataAccess) {
         self.configuration = configuration
         self.packageReleases = dataAccess.packageReleases
+        self.packageResources = dataAccess.packageResources
     }
 
     func listForPackage(request: Request) async throws -> Response {
@@ -51,6 +54,61 @@ struct PackageReleasesController {
         let response = PackageReleasesResponse(
             releases: Dictionary(list.map { ($0.version.description, PackageReleasesResponse.ReleaseInfo.from($0, baseURL: self.configuration.api.baseURL)) },
                                  uniquingKeysWith: { first, _ in first })
+        )
+        return Response.json(status: .ok, body: response, headers: headers)
+    }
+
+    func fetchPackageReleaseInfo(request: Request) async throws -> Response {
+        let package = try request.getPackageParam(validating: true)
+        // Client may append .json extension to the URI (4.2)
+        let version = try request.getVersionParam(removingExtension: ".json")
+
+        let release = try await self.packageReleases.get(package: package, version: version)
+        guard release.status != .deleted else {
+            throw PackageRegistry.APIError.resourceGone("\(package)@\(version) has been removed")
+        }
+
+        let allReleases = try await self.packageReleases.list(for: package)
+        guard !allReleases.isEmpty else {
+            throw PackageRegistry.APIError.serverError("\(package) should have at least one release")
+        }
+
+        let sourceArchive: PackageRegistryModel.PackageResource?
+        do {
+            sourceArchive = try await self.packageResources.get(package: package, version: version)
+        } catch DataAccessError.notFound {
+            sourceArchive = nil
+        } catch {
+            throw error
+        }
+
+        let sortedReleases = allReleases.sorted { $0.version > $1.version }
+        // The requested version is not found
+        guard let releaseIndex = sortedReleases.firstIndex(where: { $0.version == version }) else {
+            throw PackageRegistry.APIError.serverError("\(package)'s releases should include \(version)")
+        }
+
+        var links = [String]()
+        // Link to the latest published release - `list` is already sorted with most recent first
+        let latest = allReleases.first! // !-safe since list is not empty at this point
+        links.append("<\(self.configuration.api.baseURL)/\(package.scope)/\(package.name)/\(latest.version)>; rel=\"latest-version\"")
+        // Link to the next published release, if one exists
+        if let successor = releaseIndex == 0 ? nil : sortedReleases[releaseIndex - 1] {
+            links.append("<\(self.configuration.api.baseURL)/\(package.scope)/\(package.name)/\(successor.version)>; rel=\"successor-version\"")
+        }
+        // Link to the previously published release, if one exists
+        if let predecessor = releaseIndex == (sortedReleases.count - 1) ? nil : sortedReleases[releaseIndex + 1] {
+            links.append("<\(self.configuration.api.baseURL)/\(package.scope)/\(package.name)/\(predecessor.version)>; rel=\"predecessor-version\"")
+        }
+
+        var headers = HTTPHeaders()
+        headers.replaceOrAdd(name: .link, value: links.joined(separator: ","))
+
+        let response = PackageReleaseInfo(
+            id: package.description,
+            version: version.description,
+            resource: sourceArchive.map { PackageReleaseInfo.ReleaseResource.sourceArchive(checksum: $0.checksum) },
+            metadata: PackageReleaseMetadata(repositoryURL: release.repositoryURL, commitHash: release.commitHash)
         )
         return Response.json(status: .ok, body: response, headers: headers)
     }

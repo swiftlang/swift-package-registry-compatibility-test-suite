@@ -118,7 +118,7 @@ final class BasicAPITests: XCTestCase {
         XCTAssertEqual(archiveMetadata.checksum, createResponse.checksum)
     }
 
-    func testCreatePackageRelease_shouldFailIfAlreadyExists() throws {
+    func testCreatePackageRelease_alreadyExists() throws {
         let name = "swift-service-discovery"
         let version = "1.0.0"
         guard let archiveMetadata = self.sourceArchives.first(where: { $0.name == name && $0.version == version }) else {
@@ -203,7 +203,7 @@ final class BasicAPITests: XCTestCase {
     }
 
     func testDeletePackageRelease_unknown() throws {
-        let scope = "apple-\(UUID().uuidString.prefix(6))"
+        let scope = "test-\(UUID().uuidString.prefix(6))"
 
         let response = try self.client.httpClient.delete(url: "\(self.url!)/\(scope)/unknown/1.0.0").wait()
         XCTAssertEqual(.notFound, response.status)
@@ -282,9 +282,123 @@ final class BasicAPITests: XCTestCase {
     }
 
     func testListPackageReleases_unknown() throws {
-        let scope = "apple-\(UUID().uuidString.prefix(6))"
+        let scope = "test-\(UUID().uuidString.prefix(6))"
 
         let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/unknown").wait()
+        XCTAssertEqual(.notFound, response.status)
+        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+            return XCTFail("ProblemDetails should not be nil")
+        }
+        XCTAssertEqual(HTTPResponseStatus.notFound.code, problemDetails.status)
+    }
+
+    // MARK: - Fetch information about a package release
+
+    func testFetchPackageReleaseInfo() throws {
+        // Create some releases for querying
+        let scope = "apple-\(UUID().uuidString.prefix(6))"
+        let name = "swift-nio"
+        let versions = ["1.14.2", "2.29.0", "2.30.0"]
+        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+
+        // Test .json suffix, case-insensitivity
+        let urls = [
+            "\(self.url!)/\(scope)/\(name)/2.29.0",
+            "\(self.url!)/\(scope)/\(name)/2.29.0.json",
+            "\(self.url!)/\(scope)/\(name.uppercased())/2.29.0",
+        ]
+        try urls.forEach {
+            try self.testHead(url: $0)
+
+            let response = try self.client.httpClient.get(url: $0).wait()
+            XCTAssertEqual(.ok, response.status)
+            XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/json"))
+            XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+            guard let infoResponse: PackageReleaseInfo = try response.decodeBody() else {
+                return XCTFail("PackageReleaseInfo should not be nil")
+            }
+
+            XCTAssertNotNil(infoResponse.metadata?.repositoryURL)
+            XCTAssertNotNil(infoResponse.metadata?.commitHash)
+
+            let links = response.parseLinkHeader()
+            XCTAssertNotNil(links.first { $0.relation == "latest-version" })
+            XCTAssertNotNil(links.first { $0.relation == "successor-version" })
+            XCTAssertNotNil(links.first { $0.relation == "predecessor-version" })
+        }
+
+        do {
+            let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/\(name)/2.30.0").wait()
+            XCTAssertEqual(.ok, response.status)
+
+            let links = response.parseLinkHeader()
+            XCTAssertNotNil(links.first { $0.relation == "latest-version" })
+            XCTAssertNil(links.first { $0.relation == "successor-version" }) // 2.30.0 is the latest version
+            XCTAssertNotNil(links.first { $0.relation == "predecessor-version" })
+        }
+
+        do {
+            let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/\(name)/1.14.2").wait()
+            XCTAssertEqual(.ok, response.status)
+
+            let links = response.parseLinkHeader()
+            XCTAssertNotNil(links.first { $0.relation == "latest-version" })
+            XCTAssertNotNil(links.first { $0.relation == "successor-version" })
+            XCTAssertNil(links.first { $0.relation == "predecessor-version" }) // 1.14.2 is the first version
+        }
+    }
+
+    func testFetchPackageReleaseInfo_deletedRelease() throws {
+        // Create the package release
+        let scope = "apple-\(UUID().uuidString.prefix(6))"
+        let name = "swift-nio"
+        let versions = ["1.14.2"]
+        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+
+        // Delete it
+        do {
+            let response = try self.client.httpClient.delete(url: "\(self.url!)/\(scope)/\(name)/\(versions[0])").wait()
+            XCTAssertEqual(.noContent, response.status)
+        }
+
+        let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/\(name)/\(versions[0])").wait()
+        XCTAssertEqual(.gone, response.status)
+        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+            return XCTFail("ProblemDetails should not be nil")
+        }
+        XCTAssertEqual(HTTPResponseStatus.gone.code, problemDetails.status)
+    }
+
+    func testFetchPackageReleaseInfo_unknownPackage() throws {
+        // Create the package release
+        let scope = "test-\(UUID().uuidString.prefix(6))"
+
+        let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/unknown/1.0.0").wait()
+        XCTAssertEqual(.notFound, response.status)
+        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+            return XCTFail("ProblemDetails should not be nil")
+        }
+        XCTAssertEqual(HTTPResponseStatus.notFound.code, problemDetails.status)
+    }
+
+    func testFetchPackageReleaseInfo_unknownPackageRelease() throws {
+        // Create some release for the package
+        let scope = "apple-\(UUID().uuidString.prefix(6))"
+        let name = "swift-nio"
+        let versions = ["1.14.2"]
+        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+
+        let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/\(name)/1.0.0").wait() // 1.0.0 does not exist
         XCTAssertEqual(.notFound, response.status)
         XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
         XCTAssertEqual("1", response.headers["Content-Version"].first)
@@ -313,6 +427,7 @@ final class BasicAPITests: XCTestCase {
         try self.testOptions(path: "/scope/name", expectedAllowedMethods: ["get"])
         try self.testOptions(path: "/scope/name.json", expectedAllowedMethods: ["get"])
         try self.testOptions(path: "/scope/name/version", expectedAllowedMethods: ["get", "put", "delete"])
+        try self.testOptions(path: "/scope/name/version.json", expectedAllowedMethods: ["get"])
         try self.testOptions(path: "/scope/name/version.zip", expectedAllowedMethods: ["get", "delete"])
     }
 
@@ -353,7 +468,7 @@ final class BasicAPITests: XCTestCase {
                                                         version: version,
                                                         sourceArchive: archive,
                                                         metadata: metadata,
-                                                        deadline: NIODeadline.now() + .seconds(10)).map { _ in }
+                                                        deadline: NIODeadline.now() + .seconds(20)).map { _ in }
             } catch {
                 return client.eventLoopGroup.next().makeFailedFuture(error)
             }

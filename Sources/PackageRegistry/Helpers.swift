@@ -20,3 +20,20 @@ extension Optional {
         }
     }
 }
+
+extension String {
+    func hasSuffix(_ suffix: String, caseSensitive: Bool) -> Bool {
+        caseSensitive ? self.hasSuffix(suffix) : self.lowercased().hasSuffix(suffix.lowercased())
+    }
+
+    func dropDotExtension(_ dotExtension: String) -> String {
+        let lowercasedString = self.lowercased()
+        let lowercasedExtension = dotExtension.lowercased()
+
+        if lowercasedString.hasSuffix(lowercasedExtension) {
+            return String(self.dropLast(dotExtension.count))
+        } else {
+            return self
+        }
+    }
+}

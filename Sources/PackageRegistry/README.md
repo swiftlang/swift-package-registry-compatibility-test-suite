@@ -38,6 +38,23 @@ curl http://localhost:9229/mona/LinkedList.json -i
   - The source repository URL if it is provided for the most recent release.
 - Pagination using the `Link` header is not supported. This implementation always returns **all** releases in the response.
 
+#### Fetch information about a package release (`GET /{scope}/{name}/{version}`) (4.2)
+
+```bash
+curl http://localhost:9229/mona/LinkedList/0.0.1 -i
+```
+
+`.json` extension in the request URL is supported:
+
+```bash
+curl http://localhost:9229/mona/LinkedList/0.0.1.json -i
+```
+- The server returns HTTP status `410` if the requested package release has been deleted. 
+- The `Link` HTTP header includes URLs to:
+  - The latest published release (specifically, the package release with the most recent `created_at` timestamp in the database)
+  - The next release in logical sequence, if any.
+  - The previous release in logical sequence, if any.
+
 #### Create package release (`PUT /{scope}/{name}/{version}`) (4.6) 
 
 This API is in proposal stage: [SE-0321](https://github.com/apple/swift-evolution/blob/main/proposals/0321-package-registry-publish.md), [API specification update](https://github.com/apple/swift-evolution/pull/1424)
