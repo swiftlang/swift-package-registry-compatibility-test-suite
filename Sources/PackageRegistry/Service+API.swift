@@ -43,6 +43,7 @@ extension PackageRegistry {
 
             let createController = CreatePackageReleaseController(configuration: configuration, dataAccess: dataAccess)
             let packageReleasesController = PackageReleasesController(configuration: configuration, dataAccess: dataAccess)
+            let packageManifestsController = PackageManifestsController(configuration: configuration, dataAccess: dataAccess)
 
             // APIs
             let apiMiddleware: [Middleware] = [MetricsMiddleware(), APIVersionMiddleware()]
@@ -66,6 +67,9 @@ extension PackageRegistry {
                     return try await packageReleasesController.fetchPackageReleaseInfo(request: request)
                 }
             }
+
+            // 4.3 GET /{scope}/{name}/{version}/Package.swift{?swift-version} - fetch manifest for a package release
+            apiRoutes.get(":scope", ":name", ":version", "Package.swift", use: packageManifestsController.fetchManifest)
 
             // FIXME: publish endpoint should require auth
             // 4.6 PUT /{scope}/{name}/{version} - create package release
@@ -134,7 +138,6 @@ extension PackageRegistry {
         case badRequest(String)
         case unprocessableEntity(String)
         case resourceGone(String)
-        case serverError(String)
     }
 }
 
@@ -158,8 +161,6 @@ extension PackageRegistry.API {
                 response = Response.jsonError(status: .unprocessableEntity, detail: detail)
             case PackageRegistry.APIError.resourceGone(let detail):
                 response = Response.jsonError(status: .gone, detail: detail)
-            case PackageRegistry.APIError.serverError(let detail):
-                response = Response.jsonError(status: .internalServerError, detail: detail)
             default:
                 response = Response.jsonError(status: .internalServerError, detail: "The server has encountered an error. Please check logs for details.")
             }

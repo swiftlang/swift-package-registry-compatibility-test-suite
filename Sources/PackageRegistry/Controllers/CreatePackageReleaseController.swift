@@ -13,7 +13,6 @@
 import struct Foundation.Data
 
 import MultipartKit
-import NIOHTTP1
 import PackageModel
 import PackageRegistryModels
 import TSCBasic

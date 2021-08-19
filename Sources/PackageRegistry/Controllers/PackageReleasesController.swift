@@ -10,14 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import PackageModel
 import PackageRegistryModels
-import TSCBasic
 import Vapor
 
 struct PackageReleasesController {
     private let configuration: PackageRegistry.Configuration
-
     private let packageReleases: PackageReleasesDAO
     private let packageResources: PackageResourcesDAO
 
@@ -70,7 +67,7 @@ struct PackageReleasesController {
 
         let allReleases = try await self.packageReleases.list(for: package)
         guard !allReleases.isEmpty else {
-            throw PackageRegistry.APIError.serverError("\(package) should have at least one release")
+            return Response.jsonError(status: .internalServerError, detail: "\(package) should have at least one release")
         }
 
         let sourceArchive: PackageRegistryModel.PackageResource?
@@ -85,7 +82,7 @@ struct PackageReleasesController {
         let sortedReleases = allReleases.sorted { $0.version > $1.version }
         // The requested version is not found
         guard let releaseIndex = sortedReleases.firstIndex(where: { $0.version == version }) else {
-            throw PackageRegistry.APIError.serverError("\(package)'s releases should include \(version)")
+            return Response.jsonError(status: .internalServerError, detail: "\(package)'s releases should include \(version)")
         }
 
         var links = [String]()

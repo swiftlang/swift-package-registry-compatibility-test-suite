@@ -409,6 +409,142 @@ final class BasicAPITests: XCTestCase {
         XCTAssertEqual(HTTPResponseStatus.notFound.code, problemDetails.status)
     }
 
+    // MARK: - Fetch package release manifest
+
+    func testFetchPackageReleaseManifest() throws {
+        // Create the package release
+        let scope = "sunshinejr-\(UUID().uuidString.prefix(6))"
+        let name = "SwiftyUserDefaults"
+        let versions = ["5.3.0"]
+        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+
+        // Case-insensitivity
+        let urls = ["\(self.url!)/\(scope)/\(name)/5.3.0/Package.swift", "\(self.url!)/\(scope)/\(name.uppercased())/5.3.0/Package.swift"]
+        try urls.forEach {
+            try self.testHead(url: $0)
+
+            let response = try self.client.httpClient.get(url: $0).wait()
+            XCTAssertEqual(.ok, response.status)
+            XCTAssertEqual("public, immutable", response.headers["Cache-Control"].first)
+            XCTAssertEqual("text/x-swift", response.headers["Content-Type"].first)
+            XCTAssertEqual("attachment; filename=\"Package.swift\"", response.headers["Content-Disposition"].first)
+            XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+            guard let responseBody = response.body else {
+                return XCTFail("Response body is empty")
+            }
+            XCTAssertEqual(responseBody.readableBytes, response.headers["Content-Length"].first.map { Int(String($0)) ?? -1 })
+
+            let manifest = String(data: Data(buffer: responseBody), encoding: .utf8)!
+            XCTAssertNotNil(manifest.range(of: "\"https://github.com/Quick/Quick.git\", .upToNextMajor(from: \"2.0.0\")", options: .caseInsensitive))
+
+            let links = response.parseLinkHeader()
+            XCTAssertNotNil(links.first { $0.relation == "alternate" })
+        }
+
+        // Version-specific manifest
+        do {
+            let url = "\(self.url!)/\(scope)/\(name)/5.3.0/Package.swift?swift-version=4.2"
+
+            try self.testHead(url: url)
+
+            let response = try self.client.httpClient.get(url: url).wait()
+            XCTAssertEqual(.ok, response.status)
+            XCTAssertEqual("public, immutable", response.headers["Cache-Control"].first)
+            XCTAssertEqual("text/x-swift", response.headers["Content-Type"].first)
+            XCTAssertEqual("attachment; filename=\"Package@swift-4.2.swift\"", response.headers["Content-Disposition"].first)
+            XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+            guard let responseBody = response.body else {
+                return XCTFail("Response body is empty")
+            }
+            XCTAssertEqual(responseBody.readableBytes, response.headers["Content-Length"].first.map { Int(String($0)) ?? -1 })
+
+            let manifest = String(data: Data(buffer: responseBody), encoding: .utf8)!
+            XCTAssertNotNil(manifest.range(of: "\"https://github.com/Quick/Quick.git\", .upToNextMajor(from: \"1.3.0\")", options: .caseInsensitive))
+
+            let links = response.parseLinkHeader()
+            XCTAssertNil(links.first { $0.relation == "alternate" })
+        }
+    }
+
+    func testFetchPackageReleaseManifest_redirectIfVersionedManifestNotFound() throws {
+        // Create the package release
+        let scope = "sunshinejr-\(UUID().uuidString.prefix(6))"
+        let name = "SwiftyUserDefaults"
+        let versions = ["5.3.0"]
+        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+
+        let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/\(name)/5.3.0/Package.swift?swift-version=5.0").wait()
+        XCTAssertEqual(.ok, response.status)
+        // Redirects to Package.swift
+        XCTAssertEqual("attachment; filename=\"Package.swift\"", response.headers["Content-Disposition"].first)
+
+        guard let responseBody = response.body else {
+            return XCTFail("Response body is empty")
+        }
+
+        let manifest = String(data: Data(buffer: responseBody), encoding: .utf8)!
+        XCTAssertNotNil(manifest.range(of: "\"https://github.com/Quick/Quick.git\", .upToNextMajor(from: \"2.0.0\")", options: .caseInsensitive))
+    }
+
+    func testFetchPackageReleaseManifest_deletedRelease() throws {
+        // Create the package release
+        let scope = "sunshinejr-\(UUID().uuidString.prefix(6))"
+        let name = "SwiftyUserDefaults"
+        let versions = ["5.3.0"]
+        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+
+        // Delete it
+        do {
+            let response = try self.client.httpClient.delete(url: "\(self.url!)/\(scope)/\(name)/\(versions[0])").wait()
+            XCTAssertEqual(.noContent, response.status)
+        }
+
+        let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/\(name)/\(versions[0])/Package.swift").wait()
+        XCTAssertEqual(.gone, response.status)
+        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+            return XCTFail("ProblemDetails should not be nil")
+        }
+        XCTAssertEqual(HTTPResponseStatus.gone.code, problemDetails.status)
+    }
+
+    func testFetchPackageReleaseManifest_unknownPackage() throws {
+        // Create the package release
+        let scope = "test-\(UUID().uuidString.prefix(6))"
+
+        let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/unknown/1.0.0/Package.swift").wait()
+        XCTAssertEqual(.notFound, response.status)
+        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+            return XCTFail("ProblemDetails should not be nil")
+        }
+        XCTAssertEqual(HTTPResponseStatus.notFound.code, problemDetails.status)
+    }
+
+    func testFetchPackageReleaseManifest_unknownPackageRelease() throws {
+        // Create some release for the package
+        let scope = "sunshinejr-\(UUID().uuidString.prefix(6))"
+        let name = "SwiftyUserDefaults"
+        let versions = ["5.3.0"]
+        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+
+        let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/\(name)/1.0.0/Package.swift").wait() // 1.0.0 does not exist
+        XCTAssertEqual(.notFound, response.status)
+        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+            return XCTFail("ProblemDetails should not be nil")
+        }
+        XCTAssertEqual(HTTPResponseStatus.notFound.code, problemDetails.status)
+    }
+
     // MARK: - info and health endpoints
 
     func testInfo() throws {
@@ -428,6 +564,7 @@ final class BasicAPITests: XCTestCase {
         try self.testOptions(path: "/scope/name.json", expectedAllowedMethods: ["get"])
         try self.testOptions(path: "/scope/name/version", expectedAllowedMethods: ["get", "put", "delete"])
         try self.testOptions(path: "/scope/name/version.json", expectedAllowedMethods: ["get"])
+        try self.testOptions(path: "/scope/name/version/Package.swift", expectedAllowedMethods: ["get"])
         try self.testOptions(path: "/scope/name/version.zip", expectedAllowedMethods: ["get", "delete"])
     }
 
@@ -512,7 +649,7 @@ private extension HTTPClient.Response {
     func parseLinkHeader() -> [Link] {
         (self.headers["Link"].first?.split(separator: ",") ?? []).compactMap {
             let parts = $0.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ";")
-            guard parts.count == 2 else {
+            guard parts.count >= 2 else {
                 return nil
             }
 

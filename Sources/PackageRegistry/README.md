@@ -54,6 +54,24 @@ curl http://localhost:9229/mona/LinkedList/0.0.1.json -i
   - The latest published release (specifically, the package release with the most recent `created_at` timestamp in the database)
   - The next release in logical sequence, if any.
   - The previous release in logical sequence, if any.
+  
+#### Fetch manifest for a package release (`GET /{scope}/{name}/{version}/Package.swift`) (4.3)
+
+Manifests are extracted from source archive as part of package release publication.
+
+```bash
+curl http://localhost:9229/mona/LinkedList/0.0.1/Package.swift -i
+```
+
+- The server returns HTTP status `410` if the associated package release has been deleted.
+- The server sets the `Cache-Control`, `Content-Type`, `Content-Disposition`, `Content-Length`, etc. HTTP headers. 
+- `Link` header is set only when `swift-version` query parameter is not provided. 
+- If the manifest for `swift-version` is not found, the server responds with HTTP status `303` and redirects to the unqualified `Package.swift` (i.e., without `swift-version`).
+
+```bash
+  # -L instructs cURL to follow redirects
+  curl http://localhost:9229/mona/LinkedList/0.0.1/Package.swift?swift-version=4.2 -iL
+```  
 
 #### Create package release (`PUT /{scope}/{name}/{version}`) (4.6) 
 

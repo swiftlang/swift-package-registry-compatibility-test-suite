@@ -59,6 +59,8 @@ protocol PackageManifestsDAO {
                 filename: String,
                 swiftToolsVersion: ToolsVersion,
                 bytes: Data) async throws -> PackageRegistryModel.PackageManifest
+
+    func get(package: PackageIdentity, version: Version) async throws -> [PackageRegistryModel.PackageManifest]
 }
 
 enum DataAccessError: Equatable, Error {
