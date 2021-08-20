@@ -47,7 +47,7 @@ struct CreatePackageReleaseController {
         do {
             _ = try await self.packageReleases.get(package: package, version: version)
             // A release already exists! Return 409 (4.6)
-            return Response.jsonError(status: .conflict, detail: "\(package)@\(version) already exists")
+            throw PackageRegistry.APIError.conflict("\(package)@\(version) already exists")
         } catch DataAccessError.notFound {
             // Release doesn't exist yet. Proceed.
             let createRequest = try FormDataDecoder().decode(CreatePackageReleaseRequest.self, from: requestBody, boundary: "boundary")

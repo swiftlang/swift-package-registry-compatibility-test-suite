@@ -44,13 +44,13 @@ struct PackageManifestsController {
 
         let manifests = try await self.packageManifests.get(package: package, version: version)
         guard !manifests.isEmpty else {
-            return Response.jsonError(status: .notFound, detail: "No manifests found for \(package)@\(version)")
+            throw PackageRegistry.APIError.notFound("No manifests found for \(package)@\(version)")
         }
 
         // `swiftVersion` is nil means we are fetching `Package.swift`, else it's a version-specific manifest.
         if let manifest = manifests.first(where: { $0.swiftVersion == swiftVersion }) {
             guard let manifestString = String(data: manifest.bytes, encoding: .utf8) else {
-                return Response.jsonError(status: .internalServerError, detail: "Invalid manifest bytes")
+                throw PackageRegistry.APIError.serverError("Invalid manifest bytes")
             }
 
             var headers = HTTPHeaders()
@@ -66,7 +66,7 @@ struct PackageManifestsController {
                     "<\(self.configuration.api.baseURL)/\(package.scope)/\(package.name)/\(version)/Package.swift?swift-version=\($0.swiftVersion!)>; rel=\"alternate\"; filename=\"\($0.filename)\"; swift-tools-version=\"\($0.swiftToolsVersion)\""
                 }
                 if !links.isEmpty {
-                    headers.replaceOrAdd(name: .link, value: links.joined(separator: ","))
+                    headers.setLinkHeader(links)
                 }
             }
 
@@ -82,14 +82,14 @@ struct PackageManifestsController {
                 // Exclude query params
 
                 guard let redirectTo = urlComponents.url?.absoluteString else {
-                    return Response.jsonError(status: .internalServerError, detail: "Cannot determine redirect URL")
+                    throw PackageRegistry.APIError.serverError("Cannot determine redirect URL")
                 }
 
                 // !-safe since swiftVersion != nil
                 request.logger.info("Package@swift-\(swiftVersion!).swift not found for \(package)@\(version). Redirecting to \(redirectTo).")
                 return request.redirect(to: redirectTo, type: .normal)
             } else {
-                return Response.jsonError(status: .notFound, detail: "No manifests found for \(package)@\(version)")
+                throw PackageRegistry.APIError.notFound("No manifests found for \(package)@\(version)")
             }
         }
     }

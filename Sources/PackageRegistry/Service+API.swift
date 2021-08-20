@@ -128,7 +128,7 @@ private func makeOptionsRequestHandler(allowMethods: [HTTPMethod]) -> ((Request)
             "<https://github.com/apple/swift-package-manager/blob/main/Documentation/Registry.md>; rel=\"service-doc\"",
             "<https://github.com/apple/swift-package-manager/blob/main/Documentation/Registry.md#appendix-a---openapi-document>; rel=\"service-desc\"",
         ]
-        headers.replaceOrAdd(name: .link, value: links.joined(separator: ","))
+        headers.setLinkHeader(links)
         return Response(status: .ok, headers: headers)
     }
 }
@@ -140,8 +140,11 @@ extension PackageRegistry {
 
     enum APIError: Error {
         case badRequest(String)
+        case notFound(String)
+        case conflict(String)
         case unprocessableEntity(String)
         case resourceGone(String)
+        case serverError(String)
     }
 }
 
@@ -161,10 +164,16 @@ extension PackageRegistry.API {
                 response = Response.jsonError(status: .notFound, detail: "Not found")
             case PackageRegistry.APIError.badRequest(let detail):
                 response = Response.jsonError(status: .badRequest, detail: detail)
+            case PackageRegistry.APIError.notFound(let detail):
+                response = Response.jsonError(status: .notFound, detail: detail)
+            case PackageRegistry.APIError.conflict(let detail):
+                response = Response.jsonError(status: .conflict, detail: detail)
             case PackageRegistry.APIError.unprocessableEntity(let detail):
                 response = Response.jsonError(status: .unprocessableEntity, detail: detail)
             case PackageRegistry.APIError.resourceGone(let detail):
                 response = Response.jsonError(status: .gone, detail: detail)
+            case PackageRegistry.APIError.serverError(let detail):
+                response = Response.jsonError(status: .internalServerError, detail: detail)
             default:
                 response = Response.jsonError(status: .internalServerError, detail: "The server has encountered an error. Please check logs for details.")
             }

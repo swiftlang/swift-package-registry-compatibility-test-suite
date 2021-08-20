@@ -186,6 +186,12 @@ extension RoutesBuilder {
 
 // MARK: - Others
 
+extension HTTPHeaders {
+    mutating func setLinkHeader(_ links: [String]) {
+        self.replaceOrAdd(name: .link, value: links.joined(separator: ","))
+    }
+}
+
 struct APIVersionStorageKey: StorageKey {
     typealias Value = PackageRegistry.APIVersion
 }

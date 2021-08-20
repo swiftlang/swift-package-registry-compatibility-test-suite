@@ -46,7 +46,7 @@ struct PackageReleasesController {
         }
 
         var headers = HTTPHeaders()
-        headers.replaceOrAdd(name: .link, value: links.joined(separator: ","))
+        headers.setLinkHeader(links)
 
         let response = PackageReleasesResponse(
             releases: Dictionary(list.map { ($0.version.description, PackageReleasesResponse.ReleaseInfo.from($0, baseURL: self.configuration.api.baseURL)) },
@@ -67,7 +67,7 @@ struct PackageReleasesController {
 
         let allReleases = try await self.packageReleases.list(for: package)
         guard !allReleases.isEmpty else {
-            return Response.jsonError(status: .internalServerError, detail: "\(package) should have at least one release")
+            throw PackageRegistry.APIError.serverError("\(package) should have at least one release")
         }
 
         let sourceArchive: PackageRegistryModel.PackageResource?
@@ -82,7 +82,7 @@ struct PackageReleasesController {
         let sortedReleases = allReleases.sorted { $0.version > $1.version }
         // The requested version is not found
         guard let releaseIndex = sortedReleases.firstIndex(where: { $0.version == version }) else {
-            return Response.jsonError(status: .internalServerError, detail: "\(package)'s releases should include \(version)")
+            throw PackageRegistry.APIError.serverError("\(package)'s releases should include \(version)")
         }
 
         var links = [String]()
@@ -99,7 +99,7 @@ struct PackageReleasesController {
         }
 
         var headers = HTTPHeaders()
-        headers.replaceOrAdd(name: .link, value: links.joined(separator: ","))
+        headers.setLinkHeader(links)
 
         let response = PackageReleaseInfo(
             id: package.description,
@@ -119,9 +119,9 @@ struct PackageReleasesController {
             try await self.packageReleases.delete(package: package, version: version)
             return Response(status: .noContent)
         } catch DataAccessError.notFound {
-            return Response.jsonError(status: .notFound, detail: "\(package)@\(version) not found")
+            throw PackageRegistry.APIError.notFound("\(package)@\(version) not found")
         } catch DataAccessError.noChange {
-            return Response.jsonError(status: .gone, detail: "\(package)@\(version) has already been removed")
+            throw PackageRegistry.APIError.resourceGone("\(package)@\(version) has already been removed")
         }
     }
 }
