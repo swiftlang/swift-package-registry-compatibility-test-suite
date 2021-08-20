@@ -36,6 +36,13 @@ extension SQLQueryFetcher {
         let future: EventLoopFuture<D?> = self.first(decoding: D.self)
         return try await future.get()
     }
+
+    func all<D>(decoding: D.Type) async throws -> [D] where D: Decodable {
+        let future: EventLoopFuture<[D]> = self.all().flatMapThrowing {
+            try $0.map { try $0.decode(model: D.self) }
+        }
+        return try await future.get()
+    }
 }
 
 extension PostgresDatabase {

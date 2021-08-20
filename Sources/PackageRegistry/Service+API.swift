@@ -42,18 +42,45 @@ extension PackageRegistry {
             self.vapor.routes.get("__health", use: healthController.health)
 
             let createController = CreatePackageReleaseController(configuration: configuration, dataAccess: dataAccess)
-            let packageReleasesController = PackageReleasesController(dataAccess: dataAccess)
+            let packageReleasesController = PackageReleasesController(configuration: configuration, dataAccess: dataAccess)
+            let packageManifestsController = PackageManifestsController(configuration: configuration, dataAccess: dataAccess)
+            let packageResourcesController = PackageResourcesController(dataAccess: dataAccess)
+            let packageIdentifiersController = PackageIdentifiersController(dataAccess: dataAccess)
 
             // APIs
             let apiMiddleware: [Middleware] = [MetricsMiddleware(), APIVersionMiddleware()]
             let apiRoutes = self.vapor.routes.grouped(apiMiddleware)
+
+            // 4.1 GET /{scope}/{name} - list package releases
+            apiRoutes.get(":scope", ":name", use: packageReleasesController.listForPackage)
+
+            // 4.2 and 4.4
+            apiRoutes.get(":scope", ":name", ":version") { request async throws -> Response in
+                guard let version = request.parameters.get("version") else {
+                    throw PackageRegistry.APIError.badRequest("Invalid path: missing 'version'")
+                }
+
+                if version.hasSuffix(".zip", caseSensitive: false) {
+                    // 4.4 GET /{scope}/{name}/{version}.zip - download source archive for a package release
+                    return try await packageResourcesController.downloadSourceArchive(request: request)
+                } else {
+                    // 4.2 GET /{scope}/{name}/{version} - fetch information about a package release
+                    return try await packageReleasesController.fetchPackageReleaseInfo(request: request)
+                }
+            }
+
+            // 4.3 GET /{scope}/{name}/{version}/Package.swift{?swift-version} - fetch manifest for a package release
+            apiRoutes.get(":scope", ":name", ":version", "Package.swift", use: packageManifestsController.fetchManifest)
+
+            // 4.5 GET /identifiers{?url} - lookup package identifiers registered for a URL
+            apiRoutes.get("identifiers", use: packageIdentifiersController.lookupByURL)
 
             // FIXME: publish endpoint should require auth
             // 4.6 PUT /{scope}/{name}/{version} - create package release
             apiRoutes.on(.PUT, ":scope", ":name", ":version", body: .collect(maxSize: "10mb"), use: createController.pushPackageRelease)
 
             // FIXME: delete endpoint should require auth
-            // 4.7 DELETE /{scope}/{name}/{version} - delete package release
+            // DELETE /{scope}/{name}/{version} - delete package release
             apiRoutes.delete(":scope", ":name", ":version", use: packageReleasesController.delete)
 
             // 4 A server should support `OPTIONS` requests
@@ -63,9 +90,12 @@ extension PackageRegistry {
                     throw PackageRegistry.APIError.badRequest("Invalid path: missing 'version'")
                 }
 
-                // Download source archive (GET) or delete package release (DELETE)
-                if version.hasSuffix(".zip") {
+                if version.hasSuffix(".zip", caseSensitive: false) {
+                    // Download source archive (GET) or delete package release (DELETE)
                     return makeOptionsRequestHandler(allowMethods: [.GET, .DELETE])(request)
+                } else if version.hasSuffix(".json", caseSensitive: false) {
+                    // Fetch information about a package release
+                    return makeOptionsRequestHandler(allowMethods: [.GET])(request)
                 }
 
                 // Else it could be one of:
@@ -98,7 +128,7 @@ private func makeOptionsRequestHandler(allowMethods: [HTTPMethod]) -> ((Request)
             "<https://github.com/apple/swift-package-manager/blob/main/Documentation/Registry.md>; rel=\"service-doc\"",
             "<https://github.com/apple/swift-package-manager/blob/main/Documentation/Registry.md#appendix-a---openapi-document>; rel=\"service-desc\"",
         ]
-        headers.replaceOrAdd(name: .link, value: links.joined(separator: ","))
+        headers.setLinkHeader(links)
         return Response(status: .ok, headers: headers)
     }
 }
@@ -110,7 +140,11 @@ extension PackageRegistry {
 
     enum APIError: Error {
         case badRequest(String)
+        case notFound(String)
+        case conflict(String)
         case unprocessableEntity(String)
+        case resourceGone(String)
+        case serverError(String)
     }
 }
 
@@ -130,8 +164,16 @@ extension PackageRegistry.API {
                 response = Response.jsonError(status: .notFound, detail: "Not found")
             case PackageRegistry.APIError.badRequest(let detail):
                 response = Response.jsonError(status: .badRequest, detail: detail)
+            case PackageRegistry.APIError.notFound(let detail):
+                response = Response.jsonError(status: .notFound, detail: detail)
+            case PackageRegistry.APIError.conflict(let detail):
+                response = Response.jsonError(status: .conflict, detail: detail)
             case PackageRegistry.APIError.unprocessableEntity(let detail):
                 response = Response.jsonError(status: .unprocessableEntity, detail: detail)
+            case PackageRegistry.APIError.resourceGone(let detail):
+                response = Response.jsonError(status: .gone, detail: detail)
+            case PackageRegistry.APIError.serverError(let detail):
+                response = Response.jsonError(status: .internalServerError, detail: detail)
             default:
                 response = Response.jsonError(status: .internalServerError, detail: "The server has encountered an error. Please check logs for details.")
             }

@@ -38,6 +38,10 @@ protocol PackageReleasesDAO {
 
     // Soft delete
     func delete(package: PackageIdentity, version: Version) async throws
+
+    func list(for package: PackageIdentity) async throws -> [PackageRegistryModel.PackageRelease]
+
+    func findBy(repositoryURL: String) async throws -> [PackageRegistryModel.PackageRelease]
 }
 
 protocol PackageResourcesDAO {
@@ -46,6 +50,10 @@ protocol PackageResourcesDAO {
                 type: PackageRegistryModel.PackageResourceType,
                 checksum: String,
                 bytes: Data) async throws -> PackageRegistryModel.PackageResource
+
+    func get(package: PackageIdentity,
+             version: Version,
+             type: PackageRegistryModel.PackageResourceType) async throws -> PackageRegistryModel.PackageResource
 }
 
 protocol PackageManifestsDAO {
@@ -55,6 +63,8 @@ protocol PackageManifestsDAO {
                 filename: String,
                 swiftToolsVersion: ToolsVersion,
                 bytes: Data) async throws -> PackageRegistryModel.PackageManifest
+
+    func get(package: PackageIdentity, version: Version) async throws -> [PackageRegistryModel.PackageManifest]
 }
 
 enum DataAccessError: Equatable, Error {

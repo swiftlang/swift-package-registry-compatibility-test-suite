@@ -21,15 +21,19 @@ extension Optional {
     }
 }
 
-// For some APIs client may append .json extension to the request URI
-func dropDotJSONExtension(_ s: String) -> String {
-    dropDotExtension(".json", from: s)
-}
+extension String {
+    func hasSuffix(_ suffix: String, caseSensitive: Bool) -> Bool {
+        caseSensitive ? self.hasSuffix(suffix) : self.lowercased().hasSuffix(suffix.lowercased())
+    }
 
-func dropDotExtension(_ dotExtension: String, from s: String) -> String {
-    if s.hasSuffix(dotExtension) {
-        return String(s.dropLast(dotExtension.count))
-    } else {
-        return s
+    func dropDotExtension(_ dotExtension: String) -> String {
+        let lowercasedString = self.lowercased()
+        let lowercasedExtension = dotExtension.lowercased()
+
+        if lowercasedString.hasSuffix(lowercasedExtension) {
+            return String(self.dropLast(dotExtension.count))
+        } else {
+            return self
+        }
     }
 }

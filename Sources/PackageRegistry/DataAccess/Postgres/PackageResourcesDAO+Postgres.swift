@@ -43,6 +43,22 @@ extension PostgresDataAccess {
                 return try packageResource.model()
             }
         }
+
+        func get(package: PackageIdentity, version: Version, type: PackageRegistryModel.PackageResourceType) async throws -> PackageRegistryModel.PackageResource {
+            try await self.connectionPool.withConnectionThrowing { connection in
+                let packageResource = try await connection.select()
+                    .column("*")
+                    .from(Self.tableName)
+                    // Case-insensitivity comparison
+                    .where(SQLFunction("lower", args: "scope"), .equal, SQLBind(package.scope.description.lowercased()))
+                    .where(SQLFunction("lower", args: "name"), .equal, SQLBind(package.name.description.lowercased()))
+                    .where(SQLFunction("lower", args: "version"), .equal, SQLBind(version.description.lowercased()))
+                    .where("type", .equal, SQLBind(type.rawValue))
+                    .first(decoding: PackageResource.self)
+                    .unwrap(orError: DataAccessError.notFound)
+                return try packageResource.model()
+            }
+        }
     }
 }
 

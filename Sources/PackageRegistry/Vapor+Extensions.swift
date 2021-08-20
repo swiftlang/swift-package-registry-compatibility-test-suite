@@ -12,7 +12,9 @@
 
 import Foundation
 
+import PackageModel
 import PackageRegistryModels
+import TSCUtility
 import Vapor
 
 // MARK: - Request
@@ -29,6 +31,81 @@ extension Request {
         let apiVersion = Range(match.range(at: 2), in: header).map { String(header[$0]) }
         let mediaType = Range(match.range(at: 4), in: header).map { String(header[$0]) }
         return (apiVersion, mediaType)
+    }
+
+    func getPackageScopeParam(validating: Bool = false) throws -> PackageModel.PackageIdentity.Scope {
+        guard let scopeString = self.parameters.get("scope") else {
+            throw PackageRegistry.APIError.badRequest("Invalid path: missing 'scope'")
+        }
+
+        let scope: PackageModel.PackageIdentity.Scope
+        if validating {
+            guard let packageScope = PackageModel.PackageIdentity.Scope(scopeString) else {
+                throw PackageRegistry.APIError.badRequest("Invalid scope: \(scopeString)")
+            }
+            scope = packageScope
+        } else {
+            do {
+                scope = try PackageModel.PackageIdentity.Scope(validating: scopeString)
+            } catch {
+                throw PackageRegistry.APIError.badRequest("Invalid scope '\(scopeString)': \(error)")
+            }
+        }
+
+        return scope
+    }
+
+    func getPackageNameParam(validating: Bool = false, removingExtension: String? = nil) throws -> PackageModel.PackageIdentity.Name {
+        guard let nameString = self.parameters.get("name") else {
+            throw PackageRegistry.APIError.badRequest("Invalid path: missing 'name'")
+        }
+
+        let sanitizedNameString: String
+        if let removingExtension = removingExtension {
+            sanitizedNameString = nameString.dropDotExtension(removingExtension)
+        } else {
+            sanitizedNameString = nameString
+        }
+
+        let name: PackageModel.PackageIdentity.Name
+        if validating {
+            guard let packageName = PackageModel.PackageIdentity.Name(sanitizedNameString) else {
+                throw PackageRegistry.APIError.badRequest("Invalid name: \(sanitizedNameString)")
+            }
+            name = packageName
+        } else {
+            do {
+                name = try PackageModel.PackageIdentity.Name(validating: sanitizedNameString)
+            } catch {
+                throw PackageRegistry.APIError.badRequest("Invalid name '\(sanitizedNameString)': \(error)")
+            }
+        }
+
+        return name
+    }
+
+    func getPackageParam(validating: Bool = false) throws -> PackageIdentity {
+        let scope = try self.getPackageScopeParam(validating: validating)
+        let name = try self.getPackageNameParam(validating: validating)
+        return PackageIdentity(scope: scope, name: name)
+    }
+
+    func getVersionParam(removingExtension: String? = nil) throws -> Version {
+        guard let versionString = self.parameters.get("version") else {
+            throw PackageRegistry.APIError.badRequest("Invalid path: missing 'version'")
+        }
+
+        let sanitizedVersionString: String
+        if let removingExtension = removingExtension {
+            sanitizedVersionString = versionString.dropDotExtension(removingExtension)
+        } else {
+            sanitizedVersionString = versionString
+        }
+
+        guard let version = Version(sanitizedVersionString) else {
+            throw PackageRegistry.APIError.badRequest("Invalid version: '\(sanitizedVersionString)'")
+        }
+        return version
     }
 }
 
@@ -68,6 +145,12 @@ extension Response {
 
 extension RoutesBuilder {
     @discardableResult
+    func get<Response>(_ path: PathComponent...,
+                       use closure: @escaping (Request) async throws -> Response) -> Route where Response: ResponseEncodable {
+        self.on(.GET, path, use: closure)
+    }
+
+    @discardableResult
     func delete<Response>(_ path: PathComponent...,
                           use closure: @escaping (Request) async throws -> Response) -> Route where Response: ResponseEncodable {
         self.on(.DELETE, path, use: closure)
@@ -102,6 +185,12 @@ extension RoutesBuilder {
 }
 
 // MARK: - Others
+
+extension HTTPHeaders {
+    mutating func setLinkHeader(_ links: [String]) {
+        self.replaceOrAdd(name: .link, value: links.joined(separator: ","))
+    }
+}
 
 struct APIVersionStorageKey: StorageKey {
     typealias Value = PackageRegistry.APIVersion

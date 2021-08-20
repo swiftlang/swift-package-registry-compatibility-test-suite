@@ -19,6 +19,80 @@ Features not implemented (and their corresponding section in the specification):
 - All `GET` endpoints support `HEAD` requests. (4)
 - All API paths support `OPTIONS` requests. (4)
 
+#### List package releases (`GET /{scope}/{name}`) (4.1)
+
+```bash
+curl http://localhost:9229/mona/LinkedList -i
+```
+
+`.json` extension in the request URL is supported:
+
+```bash
+curl http://localhost:9229/mona/LinkedList.json -i
+```
+
+- The server returns HTTP status `404` if the given package has not published any releases. In other words, this API never returns an empty list.
+- A deleted release will have `problem.status` set to `410`.
+- The `Link` HTTP header includes URLs to:
+  - The latest published release. Specifically, the package release with the most recent `created_at` timestamp in the database.
+  - The source repository URL if it is provided for the most recent release.
+- Pagination using the `Link` header is not supported. This implementation always returns **all** releases in the response.
+
+#### Fetch information about a package release (`GET /{scope}/{name}/{version}`) (4.2)
+
+```bash
+curl http://localhost:9229/mona/LinkedList/0.0.1 -i
+```
+
+`.json` extension in the request URL is supported:
+
+```bash
+curl http://localhost:9229/mona/LinkedList/0.0.1.json -i
+```
+- The server returns HTTP status `410` if the requested package release has been deleted. 
+- The `Link` HTTP header includes URLs to:
+  - The latest published release (specifically, the package release with the most recent `created_at` timestamp in the database)
+  - The next release in logical sequence, if any.
+  - The previous release in logical sequence, if any.
+  
+#### Fetch manifest for a package release (`GET /{scope}/{name}/{version}/Package.swift`) (4.3)
+
+Manifests are extracted from source archive as part of package release publication.
+
+```bash
+curl http://localhost:9229/mona/LinkedList/0.0.1/Package.swift -i
+```
+
+- The server returns HTTP status `410` if the associated package release has been deleted.
+- The server sets the `Cache-Control`, `Content-Type`, `Content-Disposition`, `Content-Length`, etc. HTTP headers. 
+- `Link` header is set only when `swift-version` query parameter is not provided. 
+- If the manifest for `swift-version` is not found, the server responds with HTTP status `303` and redirects to the unqualified `Package.swift` (i.e., without `swift-version`).
+
+```bash
+  # -L instructs cURL to follow redirects
+  curl http://localhost:9229/mona/LinkedList/0.0.1/Package.swift?swift-version=4.2 -iL
+```  
+
+#### Download source archive for a package release (`GET /{scope}/{name}/{version}.zip`) (4.4)
+
+```bash
+curl http://localhost:9229/mona/LinkedList/0.0.1.zip
+```
+
+- The `.zip` extension is required.
+- The server returns HTTP status `410` if the package release has been deleted.
+- The server sets the `Accept-Ranges`, `Cache-Control`, `Content-Type`, `Content-Disposition`, `Content-Length`, `Digest` etc. HTTP headers. 
+- Since this implementation does not support mirrors or alternative download locations, the `Link` header is not set.
+- Client should use the `Digest` response header to verify the download, but to verify the integrity of the downloaded source archive, use `checksum` value of the associated `source-archive` resource in the `GET /{scope}/{name}/{version}` response.
+
+#### Lookup package identifiers registered for a URL (`GET /identifiers{?url}`) (4.5)
+
+```bash
+curl http://localhost:9229/identifiers?url=https://github.com/mona/LinkedList -i
+```
+
+- The server returns `404` if no package identifiers are found for `url`. In other words, this API never returns an empty list.
+
 #### Create package release (`PUT /{scope}/{name}/{version}`) (4.6) 
 
 This API is in proposal stage: [SE-0321](https://github.com/apple/swift-evolution/blob/main/proposals/0321-package-registry-publish.md), [API specification update](https://github.com/apple/swift-evolution/pull/1424)

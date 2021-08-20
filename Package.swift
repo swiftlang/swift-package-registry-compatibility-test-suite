@@ -19,7 +19,7 @@ let package = Package(
     platforms: [.macOS("12.0")],
     products: [],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.30.0")),
+        .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.32.1")),
         .package(url: "https://github.com/vapor/vapor.git", .upToNextMajor(from: "4.48.3")),
         // TODO: pin to release with async/await support
         .package(url: "https://github.com/swift-server/swift-service-lifecycle.git", .branch("main")),
@@ -32,6 +32,7 @@ let package = Package(
         .package(url: "https://github.com/swift-server/async-http-client.git", .upToNextMajor(from: "1.3.0")),
         .package(url: "https://github.com/apple/swift-atomics.git", .upToNextMajor(from: "0.0.3")),
         .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "0.4.3")),
+        .package(url: "https://github.com/apple/swift-crypto.git", .upToNextMajor(from: "1.1.6")),
     ],
     targets: [
         .target(name: "DatabaseMigrations", dependencies: [
@@ -61,6 +62,7 @@ let package = Package(
                               .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
                               .product(name: "PostgresKit", package: "postgres-kit"),
                               .product(name: "MultipartKit", package: "multipart-kit"),
+                              .product(name: "Crypto", package: "swift-crypto"),
                           ],
                           exclude: ["README.md"]),
 
@@ -83,6 +85,7 @@ let package = Package(
                     dependencies: [
                         "PackageRegistryModels",
                         "PackageRegistryClient",
+                        .product(name: "Crypto", package: "swift-crypto"),
                     ],
                     exclude: ["Resources/"]),
     ]
