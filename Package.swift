@@ -19,7 +19,7 @@ let package = Package(
     platforms: [.macOS("12.0")],
     products: [],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.30.0")),
+        .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.32.1")),
         .package(url: "https://github.com/vapor/vapor.git", .upToNextMajor(from: "4.48.3")),
         // TODO: pin to release with async/await support
         .package(url: "https://github.com/swift-server/swift-service-lifecycle.git", .branch("main")),

@@ -45,6 +45,7 @@ extension PackageRegistry {
             let packageReleasesController = PackageReleasesController(configuration: configuration, dataAccess: dataAccess)
             let packageManifestsController = PackageManifestsController(configuration: configuration, dataAccess: dataAccess)
             let packageResourcesController = PackageResourcesController(dataAccess: dataAccess)
+            let packageIdentifiersController = PackageIdentifiersController(dataAccess: dataAccess)
 
             // APIs
             let apiMiddleware: [Middleware] = [MetricsMiddleware(), APIVersionMiddleware()]
@@ -70,6 +71,9 @@ extension PackageRegistry {
 
             // 4.3 GET /{scope}/{name}/{version}/Package.swift{?swift-version} - fetch manifest for a package release
             apiRoutes.get(":scope", ":name", ":version", "Package.swift", use: packageManifestsController.fetchManifest)
+
+            // 4.5 GET /identifiers{?url} - lookup package identifiers registered for a URL
+            apiRoutes.get("identifiers", use: packageIdentifiersController.lookupByURL)
 
             // FIXME: publish endpoint should require auth
             // 4.6 PUT /{scope}/{name}/{version} - create package release

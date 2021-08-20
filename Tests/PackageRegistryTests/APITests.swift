@@ -630,6 +630,82 @@ final class BasicAPITests: XCTestCase {
         XCTAssertEqual(HTTPResponseStatus.notFound.code, problemDetails.status)
     }
 
+    // MARK: - Lookup package identifiers by URL
+
+    func testLookupPackageIdentifiersByURL() throws {
+        let scope = "apple-\(UUID().uuidString.prefix(6))"
+
+        func createPackageRelease(name: String, version: String) throws -> String {
+            guard let archiveMetadata = self.sourceArchives.first(where: { $0.name == name && $0.version == version }) else {
+                throw StringError(message: "Source archive not found")
+            }
+
+            let archiveURL = URL(fileURLWithPath: #file).deletingLastPathComponent()
+                .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent(archiveMetadata.filename)
+            let archive = try Data(contentsOf: archiveURL)
+            let repositoryURL = archiveMetadata.repositoryURL.replacingOccurrences(of: archiveMetadata.scope, with: scope)
+            let metadata = PackageReleaseMetadata(repositoryURL: repositoryURL, commitHash: archiveMetadata.commitHash)
+
+            let response = try self.client.createPackageRelease(scope: scope,
+                                                                name: name,
+                                                                version: version,
+                                                                sourceArchive: archive,
+                                                                metadata: metadata,
+                                                                deadline: NIODeadline.now() + .seconds(3)).wait()
+
+            XCTAssertEqual(.created, response.status)
+
+            return repositoryURL
+        }
+
+        // Register package identifier with repository URL
+        let sdRepositoryURL = try createPackageRelease(name: "swift-service-discovery", version: "1.0.0")
+        let nioRepositoryURL = try createPackageRelease(name: "swift-nio", version: "1.14.2")
+
+        // swift-service-discovery repository URL
+        // Case-insensitivity
+        let urls = ["\(self.url!)/identifiers?url=\(sdRepositoryURL)", "\(self.url!)/identifiers?url=\(sdRepositoryURL.uppercased())"]
+        try urls.forEach {
+            try self.testHead(url: $0)
+
+            let response = try self.client.httpClient.get(url: $0).wait()
+            XCTAssertEqual(.ok, response.status)
+            XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/json"))
+            XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+            guard let identifiersResponse: PackageIdentifiersResponse = try response.decodeBody() else {
+                return XCTFail("PackageIdentifiersResponse should not be nil")
+            }
+            XCTAssertEqual(["\(scope).swift-service-discovery"], identifiersResponse.identifiers)
+        }
+
+        // swift-nio repository URL
+        let response = try self.client.httpClient.get(url: "\(self.url!)/identifiers?url=\(nioRepositoryURL)").wait()
+        XCTAssertEqual(.ok, response.status)
+        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/json"))
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+        guard let identifiersResponse: PackageIdentifiersResponse = try response.decodeBody() else {
+            return XCTFail("PackageIdentifiersResponse should not be nil")
+        }
+        XCTAssertEqual(["\(scope).swift-nio"], identifiersResponse.identifiers)
+    }
+
+    func testLookupPackageIdentifiersByURL_unknownURL() throws {
+        let scope = "test-\(UUID().uuidString.prefix(6))"
+        let repositoryURL = "https://test.repo.com/\(scope)/unknown"
+
+        let response = try self.client.httpClient.get(url: "\(self.url!)/identifiers?url=\(repositoryURL)").wait()
+        XCTAssertEqual(.notFound, response.status)
+        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+        XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+            return XCTFail("ProblemDetails should not be nil")
+        }
+        XCTAssertEqual(HTTPResponseStatus.notFound.code, problemDetails.status)
+    }
+
     // MARK: - info and health endpoints
 
     func testInfo() throws {
@@ -651,6 +727,7 @@ final class BasicAPITests: XCTestCase {
         try self.testOptions(path: "/scope/name/version.json", expectedAllowedMethods: ["get"])
         try self.testOptions(path: "/scope/name/version/Package.swift", expectedAllowedMethods: ["get"])
         try self.testOptions(path: "/scope/name/version.zip", expectedAllowedMethods: ["get", "delete"])
+        try self.testOptions(path: "/identifiers", expectedAllowedMethods: ["get"])
     }
 
     // MARK: - Helpers
@@ -690,7 +767,9 @@ final class BasicAPITests: XCTestCase {
                                                         version: version,
                                                         sourceArchive: archive,
                                                         metadata: metadata,
-                                                        deadline: NIODeadline.now() + .seconds(20)).map { _ in }
+                                                        deadline: NIODeadline.now() + .seconds(20)).map { response in
+                    XCTAssertEqual(.created, response.status)
+                }
             } catch {
                 return client.eventLoopGroup.next().makeFailedFuture(error)
             }

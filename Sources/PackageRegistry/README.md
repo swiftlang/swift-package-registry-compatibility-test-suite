@@ -85,6 +85,14 @@ curl http://localhost:9229/mona/LinkedList/0.0.1.zip
 - Since this implementation does not support mirrors or alternative download locations, the `Link` header is not set.
 - Client should use the `Digest` response header to verify the download, but to verify the integrity of the downloaded source archive, use `checksum` value of the associated `source-archive` resource in the `GET /{scope}/{name}/{version}` response.
 
+#### Lookup package identifiers registered for a URL (`GET /identifiers{?url}`) (4.5)
+
+```bash
+curl http://localhost:9229/identifiers?url=https://github.com/mona/LinkedList -i
+```
+
+- The server returns `404` if no package identifiers are found for `url`. In other words, this API never returns an empty list.
+
 #### Create package release (`PUT /{scope}/{name}/{version}`) (4.6) 
 
 This API is in proposal stage: [SE-0321](https://github.com/apple/swift-evolution/blob/main/proposals/0321-package-registry-publish.md), [API specification update](https://github.com/apple/swift-evolution/pull/1424)

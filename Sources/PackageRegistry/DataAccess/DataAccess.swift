@@ -40,6 +40,8 @@ protocol PackageReleasesDAO {
     func delete(package: PackageIdentity, version: Version) async throws
 
     func list(for package: PackageIdentity) async throws -> [PackageRegistryModel.PackageRelease]
+
+    func findBy(repositoryURL: String) async throws -> [PackageRegistryModel.PackageRelease]
 }
 
 protocol PackageResourcesDAO {

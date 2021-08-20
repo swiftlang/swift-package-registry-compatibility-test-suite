@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
-import NIO
 import Vapor
 
 struct PackageResourcesController {

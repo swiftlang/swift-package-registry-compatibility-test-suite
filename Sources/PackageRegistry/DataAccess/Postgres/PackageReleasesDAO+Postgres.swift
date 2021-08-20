@@ -147,6 +147,18 @@ extension PostgresDataAccess {
                 return try packageReleases.map { try $0.model() }
             }
         }
+
+        func findBy(repositoryURL: String) async throws -> [PackageRegistryModel.PackageRelease] {
+            try await self.connectionPool.withConnectionThrowing { connection in
+                let packageReleases = try await connection.select()
+                    .column("*")
+                    .from(Self.tableName)
+                    // Case-insensitivity comparison
+                    .where(SQLFunction("lower", args: "repository_url"), .equal, SQLBind(repositoryURL.lowercased()))
+                    .all(decoding: PackageRelease.self)
+                return try packageReleases.map { try $0.model() }
+            }
+        }
     }
 }
 
