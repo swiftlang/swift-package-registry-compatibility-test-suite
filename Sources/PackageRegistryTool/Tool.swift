@@ -53,8 +53,7 @@ struct PackageRegistryTool: ParsableCommand {
         var metadataPath: String?
 
         func run() throws {
-            let configuration = PackageRegistryClient.Configuration(url: self.packageRegistry, tls: false)
-            let registryClient = PackageRegistryClient(eventLoopGroupProvider: .createNew, configuration: configuration)
+            let registryClient = PackageRegistryClient(url: self.packageRegistry, tls: false, eventLoopGroupProvider: .createNew)
             defer { try! registryClient.syncShutdown() }
 
             let archiveURL = URL(fileURLWithPath: self.archivePath)

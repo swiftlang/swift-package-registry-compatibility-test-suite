@@ -19,6 +19,9 @@ services:
 
   test-registry:
     image: swift-package-registry-compat-test-suite:20.04-main
+    
+  test-compatibility:
+    image: swift-package-registry-compat-test-suite:20.04-main
 
   soundness:
     image: swift-package-registry-compat-test-suite:20.04-main

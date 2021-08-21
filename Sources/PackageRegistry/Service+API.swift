@@ -208,11 +208,8 @@ struct APIVersionMiddleware: Middleware {
             // 3.5 `Content-Version` header must be set
             response.headers.replaceOrAdd(name: .contentVersion, value: apiVersion.rawValue)
 
-            // 3.5 `Content-Type` header must be set (except for 204 and redirects (3xx), and `OPTIONS` requests)
-            if request.method == .OPTIONS {
-                return response
-            }
-            if response.status.code != 204, !(300 ... 399).contains(response.status.code) {
+            // 3.5 `Content-Type` header must be set if response body is non-empty
+            if response.body.count > 0 {
                 guard !response.headers[.contentType].isEmpty else {
                     // FIXME: this is for us to catch coding error during development; should not do this in production
                     preconditionFailure("Content-Type header is not set!")

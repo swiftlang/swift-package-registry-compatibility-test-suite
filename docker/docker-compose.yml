@@ -86,6 +86,19 @@ services:
 
         swift test --filter PackageRegistryTests
       "
+      
+  test-compatibility:
+    <<: *test-common
+    command: >
+      /bin/bash -xcl "
+        while ! nc -z api 9229;
+        do
+          echo Waiting for API server...;
+        sleep 3;
+        done;
+
+        swift test --filter PackageRegistryCompatibilityTestSuiteTests
+      "
 
   soundness:
     <<: *common

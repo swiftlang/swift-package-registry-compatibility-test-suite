@@ -20,29 +20,31 @@ import NIOHTTP1
 
 public struct PackageRegistryClient {
     private typealias EventLoopGroupContainer = (value: EventLoopGroup, managed: Bool)
+    private typealias HTTPClientContainer = (value: HTTPClient, managed: Bool)
+
+    public let url: String
+    private let defaultRequestTimeout: TimeAmount
 
     private let eventLoopGroupContainer: EventLoopGroupContainer
-    private let configuration: Configuration
-
-    private let client: HTTPClient
-    private let encoder: JSONEncoder
+    private let clientContainer: HTTPClientContainer
     private let logger: Logger
+
+    private let encoder: JSONEncoder
 
     private let isShutdown = ManagedAtomic<Bool>(false)
 
-    public var url: String {
-        self.configuration.url
-    }
-
     public var httpClient: HTTPClient {
-        self.client
+        self.clientContainer.value
     }
 
     public var eventLoopGroup: EventLoopGroup {
         self.eventLoopGroupContainer.value
     }
 
-    public init(eventLoopGroupProvider: EventLoopGroupProvider = .createNew, configuration: Configuration, logger: Logger? = nil) {
+    public init(url: String, tls: Bool, defaultRequestTimeout: TimeAmount? = nil, eventLoopGroupProvider: EventLoopGroupProvider = .createNew, logger: Logger? = nil) {
+        self.url = url
+        self.defaultRequestTimeout = defaultRequestTimeout ?? .milliseconds(500)
+
         let eventLoopGroupContainer: EventLoopGroupContainer
         switch eventLoopGroupProvider {
         case .createNew:
@@ -50,12 +52,26 @@ public struct PackageRegistryClient {
         case .shared(let eventLoopGroup):
             eventLoopGroupContainer = (value: eventLoopGroup, managed: false)
         }
-
         self.eventLoopGroupContainer = eventLoopGroupContainer
-        self.configuration = configuration
-        self.client = HTTPClient(eventLoopGroupProvider: .shared(eventLoopGroupContainer.value), configuration: .from(configuration))
-        self.encoder = JSONEncoder()
+
+        var clientConfig = HTTPClient.Configuration()
+        if tls {
+            clientConfig.tlsConfiguration = .clientDefault
+        }
+        let client = HTTPClient(eventLoopGroupProvider: .shared(eventLoopGroupContainer.value), configuration: clientConfig)
+        self.clientContainer = (value: client, managed: true)
+
         self.logger = logger ?? Logger(label: "PackageRegistryClient")
+        self.encoder = JSONEncoder()
+    }
+
+    public init(url: String, defaultRequestTimeout: TimeAmount? = nil, client: HTTPClient, logger: Logger? = nil) {
+        self.url = url
+        self.defaultRequestTimeout = defaultRequestTimeout ?? .milliseconds(500)
+        self.eventLoopGroupContainer = (value: client.eventLoopGroup, managed: false)
+        self.clientContainer = (value: client, managed: false)
+        self.logger = logger ?? Logger(label: "PackageRegistryClient")
+        self.encoder = JSONEncoder()
     }
 
     public func syncShutdown() throws {
@@ -64,10 +80,12 @@ public struct PackageRegistryClient {
         }
 
         var lastError: Swift.Error?
-        do {
-            try self.client.syncShutdown()
-        } catch {
-            lastError = error
+        if self.clientContainer.managed {
+            do {
+                try self.httpClient.syncShutdown()
+            } catch {
+                lastError = error
+            }
         }
         if self.eventLoopGroupContainer.managed {
             do {
@@ -98,6 +116,7 @@ public struct PackageRegistryClient {
                                      version: String,
                                      sourceArchive: Data,
                                      metadataJSON: Data? = nil,
+                                     headers: HTTPHeaders? = nil,
                                      deadline: NIODeadline? = nil) -> EventLoopFuture<HTTPClient.Response> {
         guard !sourceArchive.isEmpty else {
             return self.eventLoopGroup.next().makeFailedFuture(PackageRegistryClientError.emptySourceArchive)
@@ -144,18 +163,18 @@ public struct PackageRegistryClient {
             return self.eventLoopGroup.next().makeFailedFuture(PackageRegistryClientError.invalidRequestBody)
         }
 
-        var headers = HTTPHeaders()
+        var headers = headers ?? HTTPHeaders()
         headers.replaceOrAdd(name: "Accept", value: "application/vnd.swift.registry.v1+json")
         headers.replaceOrAdd(name: "Content-Type", value: "multipart/form-data;boundary=\"boundary\"")
         headers.replaceOrAdd(name: "Content-Length", value: "\(requestBodyData.count)")
         headers.replaceOrAdd(name: "Expect", value: "100-continue")
 
         let requestBody = HTTPClient.Body.data(requestBodyData)
-        let url = "\(self.configuration.url)/\(scope)/\(name)/\(version)"
+        let url = "\(self.url)/\(scope)/\(name)/\(version)"
 
         do {
             let request = try HTTPClient.Request(url: url, method: .PUT, headers: headers, body: requestBody)
-            return self.client.execute(request: request, deadline: deadline ?? (NIODeadline.now() + self.configuration.defaultRequestTimeout))
+            return self.httpClient.execute(request: request, deadline: deadline ?? (NIODeadline.now() + self.defaultRequestTimeout))
         } catch {
             self.logger.warning("Failed to create request: \(error)")
             return self.eventLoopGroup.next().makeFailedFuture(PackageRegistryClientError.invalidRequest)
@@ -193,18 +212,6 @@ public struct PackageRegistryClient {
         case shared(EventLoopGroup)
         case createNew
     }
-
-    public struct Configuration {
-        public var url: String
-        public var tls: Bool
-        public var defaultRequestTimeout: TimeAmount
-
-        public init(url: String, tls: Bool, defaultRequestTimeout: TimeAmount? = nil) {
-            self.url = url
-            self.tls = tls
-            self.defaultRequestTimeout = defaultRequestTimeout ?? .milliseconds(500)
-        }
-    }
 }
 
 public enum PackageRegistryClientError: Error {
@@ -212,14 +219,4 @@ public enum PackageRegistryClientError: Error {
     case invalidMetadata
     case invalidRequestBody
     case invalidRequest
-}
-
-private extension HTTPClient.Configuration {
-    static func from(_ configuration: PackageRegistryClient.Configuration) -> HTTPClient.Configuration {
-        var config = HTTPClient.Configuration()
-        if configuration.tls {
-            config.tlsConfiguration = .clientDefault
-        }
-        return config
-    }
 }

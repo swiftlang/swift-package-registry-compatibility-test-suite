@@ -1,0 +1,17 @@
+{
+    "createPackageRelease": {
+        "packageReleases": [
+            {
+                "version": "1.0.0",
+                "sourceArchivePath": "../SourceArchives/swift-nio@1.14.2.zip",
+                "metadataPath": "Metadata/swift-nio@1.14.2.json"
+            },
+            {
+                "version": "2.0.0",
+                "sourceArchivePath": "../SourceArchives/SwiftyUserDefaults@5.3.0.zip",
+                "metadataPath": "Metadata/SwiftyUserDefaults@5.3.0.json"
+            }
+        ],
+        "maxProcessingTimeInSeconds": 10
+    }
+}

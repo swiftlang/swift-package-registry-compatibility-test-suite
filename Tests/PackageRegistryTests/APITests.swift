@@ -28,7 +28,7 @@ final class BasicAPITests: XCTestCase {
 
     override func setUp() {
         do {
-            let archivesJSON = URL(fileURLWithPath: #file).deletingLastPathComponent().appendingPathComponent("Resources", isDirectory: true).appendingPathComponent("source_archives.json")
+            let archivesJSON = self.fixtureURL(filename: "source_archives.json")
             self.sourceArchives = try JSONDecoder().decode([SourceArchiveMetadata].self, from: Data(contentsOf: archivesJSON))
         } catch {
             XCTFail("Failed to load source_archives.json")
@@ -38,8 +38,7 @@ final class BasicAPITests: XCTestCase {
         let port = ProcessInfo.processInfo.environment["API_SERVER_PORT"].flatMap(Int.init) ?? 9229
         self.url = "http://\(host):\(port)"
 
-        let clientConfiguration = PackageRegistryClient.Configuration(url: self.url, tls: false, defaultRequestTimeout: .seconds(1))
-        self.client = PackageRegistryClient(eventLoopGroupProvider: .createNew, configuration: clientConfiguration)
+        self.client = PackageRegistryClient(url: self.url, tls: false, defaultRequestTimeout: .seconds(1), eventLoopGroupProvider: .createNew)
     }
 
     override func tearDown() {
@@ -55,8 +54,7 @@ final class BasicAPITests: XCTestCase {
             return XCTFail("Source archive not found")
         }
 
-        let archiveURL = URL(fileURLWithPath: #file).deletingLastPathComponent()
-            .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent(archiveMetadata.filename)
+        let archiveURL = self.fixtureURL(filename: archiveMetadata.filename)
         let archive = try Data(contentsOf: archiveURL)
 
         // Create a unique scope to avoid conflicts between tests and test runs
@@ -90,8 +88,7 @@ final class BasicAPITests: XCTestCase {
             return XCTFail("Source archive not found")
         }
 
-        let archiveURL = URL(fileURLWithPath: #file).deletingLastPathComponent()
-            .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent(archiveMetadata.filename)
+        let archiveURL = self.fixtureURL(filename: archiveMetadata.filename)
         let archive = try Data(contentsOf: archiveURL)
 
         // Create a unique scope to avoid conflicts between tests and test runs
@@ -126,8 +123,7 @@ final class BasicAPITests: XCTestCase {
             return XCTFail("Source archive not found")
         }
 
-        let archiveURL = URL(fileURLWithPath: #file).deletingLastPathComponent()
-            .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent(archiveMetadata.filename)
+        let archiveURL = self.fixtureURL(filename: archiveMetadata.filename)
         let archive = try Data(contentsOf: archiveURL)
 
         // Create a unique scope to avoid conflicts between tests and test runs
@@ -166,8 +162,7 @@ final class BasicAPITests: XCTestCase {
     }
 
     func testCreatePackageRelease_badArchive() throws {
-        let archiveURL = URL(fileURLWithPath: #file).deletingLastPathComponent()
-            .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent("bad-package.zip")
+        let archiveURL = self.fixtureURL(filename: "bad-package.zip")
         let archive = try Data(contentsOf: archiveURL)
 
         // Create a unique scope to avoid conflicts between tests and test runs
@@ -640,8 +635,7 @@ final class BasicAPITests: XCTestCase {
                 throw StringError(message: "Source archive not found")
             }
 
-            let archiveURL = URL(fileURLWithPath: #file).deletingLastPathComponent()
-                .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent(archiveMetadata.filename)
+            let archiveURL = self.fixtureURL(filename: archiveMetadata.filename)
             let archive = try Data(contentsOf: archiveURL)
             let repositoryURL = archiveMetadata.repositoryURL.replacingOccurrences(of: archiveMetadata.scope, with: scope)
             let metadata = PackageReleaseMetadata(repositoryURL: repositoryURL, commitHash: archiveMetadata.commitHash)
@@ -755,8 +749,7 @@ final class BasicAPITests: XCTestCase {
                 return client.eventLoopGroup.next().makeFailedFuture(StringError(message: "Source archive not found"))
             }
 
-            let archiveURL = URL(fileURLWithPath: #file).deletingLastPathComponent()
-                .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent(archiveMetadata.filename)
+            let archiveURL = self.fixtureURL(filename: archiveMetadata.filename)
             do {
                 let archive = try Data(contentsOf: archiveURL)
                 let repositoryURL = archiveMetadata.repositoryURL.replacingOccurrences(of: archiveMetadata.scope, with: scope)
@@ -776,6 +769,12 @@ final class BasicAPITests: XCTestCase {
         }
 
         try EventLoopFuture.andAllSucceed(futures, on: self.client.eventLoopGroup.next()).wait()
+    }
+
+    private func fixtureURL(filename: String) -> URL {
+        URL(fileURLWithPath: #file).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Fixtures", isDirectory: true).appendingPathComponent("SourceArchives", isDirectory: true)
+            .appendingPathComponent(filename)
     }
 }
 

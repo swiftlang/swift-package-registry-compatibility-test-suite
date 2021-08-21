@@ -17,7 +17,9 @@ import PackageDescription
 let package = Package(
     name: "swift-package-registry-compatibility-test-suite",
     platforms: [.macOS("12.0")],
-    products: [],
+    products: [
+        .executable(name: "package-registry-compatibility", targets: ["PackageRegistryCompatibilityTestSuite"]),
+    ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.32.1")),
         .package(url: "https://github.com/vapor/vapor.git", .upToNextMajor(from: "4.48.3")),
@@ -77,16 +79,27 @@ let package = Package(
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ]),
 
+        .executableTarget(name: "PackageRegistryCompatibilityTestSuite",
+                          dependencies: [
+                              "PackageRegistryClient",
+                              .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                              .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                              .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
+                          ],
+                          exclude: ["README.md"]),
+
         .testTarget(name: "PostgresMigrationsTests", dependencies: [
             "PostgresMigrations",
         ]),
 
-        .testTarget(name: "PackageRegistryTests",
-                    dependencies: [
-                        "PackageRegistryModels",
-                        "PackageRegistryClient",
-                        .product(name: "Crypto", package: "swift-crypto"),
-                    ],
-                    exclude: ["Resources/"]),
+        .testTarget(name: "PackageRegistryTests", dependencies: [
+            "PackageRegistryModels",
+            "PackageRegistryClient",
+            .product(name: "Crypto", package: "swift-crypto"),
+        ]),
+
+        .testTarget(name: "PackageRegistryCompatibilityTestSuiteTests", dependencies: [
+            "PackageRegistryCompatibilityTestSuite",
+        ]),
     ]
 )
