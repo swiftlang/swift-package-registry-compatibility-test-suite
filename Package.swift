@@ -68,6 +68,7 @@ let package = Package(
 
         .target(name: "PackageRegistryClient", dependencies: [
             .product(name: "AsyncHTTPClient", package: "async-http-client"),
+            .product(name: "_NIOConcurrency", package: "swift-nio"), // async/await bridge
             .product(name: "Atomics", package: "swift-atomics"),
             .product(name: "Logging", package: "swift-log"),
         ]),

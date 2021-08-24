@@ -53,35 +53,45 @@ struct PackageRegistryTool: ParsableCommand {
         var metadataPath: String?
 
         func run() throws {
-            let configuration = PackageRegistryClient.Configuration(url: self.packageRegistry, tls: false)
-            let registryClient = PackageRegistryClient(eventLoopGroupProvider: .createNew, configuration: configuration)
+            let configuration = PackageRegistryClient.Configuration(url: self.packageRegistry)
+            let registryClient = PackageRegistryClient(httpClientProvider: .createNew, configuration: configuration)
             defer { try! registryClient.syncShutdown() }
 
             let archiveURL = URL(fileURLWithPath: self.archivePath)
             let archiveData = try Data(contentsOf: archiveURL)
             print("Archive size: \(archiveData.count)")
 
-            let response: HTTPClient.Response
-            if let metadata = self.metadata {
-                response = try registryClient.createPackageRelease(scope: self.scope,
-                                                                   name: self.name,
-                                                                   version: self.version,
-                                                                   sourceArchive: archiveData,
-                                                                   metadataJSON: metadata,
-                                                                   deadline: NIODeadline.now() + .seconds(5)).wait()
-            } else {
-                var metadata: Data?
-                if let metadataPath = self.metadataPath {
-                    metadata = try Data(contentsOf: URL(fileURLWithPath: metadataPath))
-                }
+            let promise = registryClient.httpClient.eventLoopGroup.next().makePromise(of: HTTPClient.Response.self)
+            Task.detached {
+                do {
+                    let response: HTTPClient.Response
+                    if let metadata = self.metadata {
+                        response = try await registryClient.createPackageRelease(scope: self.scope,
+                                                                                 name: self.name,
+                                                                                 version: self.version,
+                                                                                 sourceArchive: archiveData,
+                                                                                 metadataJSON: metadata,
+                                                                                 deadline: NIODeadline.now() + .seconds(5))
+                    } else {
+                        var metadata: Data?
+                        if let metadataPath = self.metadataPath {
+                            metadata = try Data(contentsOf: URL(fileURLWithPath: metadataPath))
+                        }
 
-                response = try registryClient.createPackageRelease(scope: self.scope,
-                                                                   name: self.name,
-                                                                   version: self.version,
-                                                                   sourceArchive: archiveData,
-                                                                   metadataJSON: metadata,
-                                                                   deadline: NIODeadline.now() + .seconds(5)).wait()
+                        response = try await registryClient.createPackageRelease(scope: self.scope,
+                                                                                 name: self.name,
+                                                                                 version: self.version,
+                                                                                 sourceArchive: archiveData,
+                                                                                 metadataJSON: metadata,
+                                                                                 deadline: NIODeadline.now() + .seconds(5))
+                    }
+                    promise.succeed(response)
+                } catch {
+                    promise.fail(error)
+                }
             }
+
+            let response = try promise.futureResult.wait()
 
             guard response.status == .created || response.status == .accepted else {
                 let responseBody = response.body
@@ -89,6 +99,7 @@ struct PackageRegistryTool: ParsableCommand {
                 print("Publication failed with status \(response.status). \(String(describing: responseData.map { String(data: $0, encoding: .utf8) }))")
                 return
             }
+            print("Success!")
         }
     }
 }
