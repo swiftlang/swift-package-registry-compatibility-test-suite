@@ -38,8 +38,8 @@ final class BasicAPITests: XCTestCase {
         let port = ProcessInfo.processInfo.environment["API_SERVER_PORT"].flatMap(Int.init) ?? 9229
         self.url = "http://\(host):\(port)"
 
-        let clientConfiguration = PackageRegistryClient.Configuration(url: self.url, tls: false, defaultRequestTimeout: .seconds(1))
-        self.client = PackageRegistryClient(eventLoopGroupProvider: .createNew, configuration: clientConfiguration)
+        let clientConfiguration = PackageRegistryClient.Configuration(url: self.url, defaultRequestTimeout: .seconds(1))
+        self.client = PackageRegistryClient(httpClientProvider: .createNew, configuration: clientConfiguration)
     }
 
     override func tearDown() {
@@ -63,24 +63,26 @@ final class BasicAPITests: XCTestCase {
         let scope = "\(archiveMetadata.scope)-\(UUID().uuidString.prefix(6))"
         let metadata: Data? = nil
 
-        let response = try self.client.createPackageRelease(scope: scope,
-                                                            name: name,
-                                                            version: version,
-                                                            sourceArchive: archive,
-                                                            metadataJSON: metadata,
-                                                            deadline: NIODeadline.now() + .seconds(3)).wait()
+        runAsyncAndWaitFor {
+            let response = try await self.client.createPackageRelease(scope: scope,
+                                                                      name: name,
+                                                                      version: version,
+                                                                      sourceArchive: archive,
+                                                                      metadataJSON: metadata,
+                                                                      deadline: NIODeadline.now() + .seconds(3))
 
-        XCTAssertEqual(.created, response.status)
-        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/json"))
-        XCTAssertEqual("1", response.headers["Content-Version"].first)
-        XCTAssertEqual(self.url + "/\(scope)/\(name)/\(version)", response.headers["Location"].first)
+            XCTAssertEqual(.created, response.status)
+            XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/json"))
+            XCTAssertEqual("1", response.headers["Content-Version"].first)
+            XCTAssertEqual(self.url + "/\(scope)/\(name)/\(version)", response.headers["Location"].first)
 
-        guard let createResponse: CreatePackageReleaseResponse = try response.decodeBody() else {
-            return XCTFail("CreatePackageReleaseResponse should not be nil")
+            guard let createResponse: CreatePackageReleaseResponse = try response.decodeBody() else {
+                return XCTFail("CreatePackageReleaseResponse should not be nil")
+            }
+            XCTAssertNil(createResponse.metadata?.repositoryURL)
+            XCTAssertNil(createResponse.metadata?.commitHash)
+            XCTAssertEqual(archiveMetadata.checksum, createResponse.checksum)
         }
-        XCTAssertNil(createResponse.metadata?.repositoryURL)
-        XCTAssertNil(createResponse.metadata?.commitHash)
-        XCTAssertEqual(archiveMetadata.checksum, createResponse.checksum)
     }
 
     func testCreatePackageRelease_withMetadata() throws {
@@ -99,24 +101,26 @@ final class BasicAPITests: XCTestCase {
         let repositoryURL = archiveMetadata.repositoryURL.replacingOccurrences(of: archiveMetadata.scope, with: scope)
         let metadata = PackageReleaseMetadata(repositoryURL: repositoryURL, commitHash: archiveMetadata.commitHash)
 
-        let response = try self.client.createPackageRelease(scope: scope,
-                                                            name: name,
-                                                            version: version,
-                                                            sourceArchive: archive,
-                                                            metadata: metadata,
-                                                            deadline: NIODeadline.now() + .seconds(3)).wait()
+        runAsyncAndWaitFor {
+            let response = try await self.client.createPackageRelease(scope: scope,
+                                                                      name: name,
+                                                                      version: version,
+                                                                      sourceArchive: archive,
+                                                                      metadata: metadata,
+                                                                      deadline: NIODeadline.now() + .seconds(3))
 
-        XCTAssertEqual(.created, response.status)
-        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/json"))
-        XCTAssertEqual("1", response.headers["Content-Version"].first)
-        XCTAssertEqual(self.url + "/\(scope)/\(name)/\(version)", response.headers["Location"].first)
+            XCTAssertEqual(.created, response.status)
+            XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/json"))
+            XCTAssertEqual("1", response.headers["Content-Version"].first)
+            XCTAssertEqual(self.url + "/\(scope)/\(name)/\(version)", response.headers["Location"].first)
 
-        guard let createResponse: CreatePackageReleaseResponse = try response.decodeBody() else {
-            return XCTFail("CreatePackageReleaseResponse should not be nil")
+            guard let createResponse: CreatePackageReleaseResponse = try response.decodeBody() else {
+                return XCTFail("CreatePackageReleaseResponse should not be nil")
+            }
+            XCTAssertEqual(repositoryURL, createResponse.metadata?.repositoryURL)
+            XCTAssertEqual(archiveMetadata.commitHash, createResponse.metadata?.commitHash)
+            XCTAssertEqual(archiveMetadata.checksum, createResponse.checksum)
         }
-        XCTAssertEqual(repositoryURL, createResponse.metadata?.repositoryURL)
-        XCTAssertEqual(archiveMetadata.commitHash, createResponse.metadata?.commitHash)
-        XCTAssertEqual(archiveMetadata.checksum, createResponse.checksum)
     }
 
     func testCreatePackageRelease_alreadyExists() throws {
@@ -135,34 +139,36 @@ final class BasicAPITests: XCTestCase {
         let repositoryURL = archiveMetadata.repositoryURL.replacingOccurrences(of: archiveMetadata.scope, with: scope)
         let metadata = PackageReleaseMetadata(repositoryURL: repositoryURL, commitHash: archiveMetadata.commitHash)
 
-        // First create should be ok
-        do {
-            let response = try self.client.createPackageRelease(scope: scope,
-                                                                name: name,
-                                                                version: version,
-                                                                sourceArchive: archive,
-                                                                metadata: metadata,
-                                                                deadline: NIODeadline.now() + .seconds(3)).wait()
-            XCTAssertEqual(.created, response.status)
+        runAsyncAndWaitFor {
+            // First create should be ok
+            do {
+                let response = try await self.client.createPackageRelease(scope: scope,
+                                                                          name: name,
+                                                                          version: version,
+                                                                          sourceArchive: archive,
+                                                                          metadata: metadata,
+                                                                          deadline: NIODeadline.now() + .seconds(3))
+                XCTAssertEqual(.created, response.status)
+            }
+
+            // Package scope and name are case-insensitive, so create release again with uppercased name should fail.
+            let nameUpper = name.uppercased()
+            let response = try await self.client.createPackageRelease(scope: scope,
+                                                                      name: nameUpper,
+                                                                      version: version,
+                                                                      sourceArchive: archive,
+                                                                      metadata: metadata,
+                                                                      deadline: NIODeadline.now() + .seconds(3))
+
+            XCTAssertEqual(.conflict, response.status)
+            XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+            XCTAssertEqual("1", response.headers["Content-Version"].first)
+
+            guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+                return XCTFail("ProblemDetails should not be nil")
+            }
+            XCTAssertEqual(HTTPResponseStatus.conflict.code, problemDetails.status)
         }
-
-        // Package scope and name are case-insensitive, so create release again with uppercased name should fail.
-        let nameUpper = name.uppercased()
-        let response = try self.client.createPackageRelease(scope: scope,
-                                                            name: nameUpper,
-                                                            version: version,
-                                                            sourceArchive: archive,
-                                                            metadata: metadata,
-                                                            deadline: NIODeadline.now() + .seconds(3)).wait()
-
-        XCTAssertEqual(.conflict, response.status)
-        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
-        XCTAssertEqual("1", response.headers["Content-Version"].first)
-
-        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
-            return XCTFail("ProblemDetails should not be nil")
-        }
-        XCTAssertEqual(HTTPResponseStatus.conflict.code, problemDetails.status)
     }
 
     func testCreatePackageRelease_badArchive() throws {
@@ -174,20 +180,22 @@ final class BasicAPITests: XCTestCase {
         let scope = "test-\(UUID().uuidString.prefix(6))"
         let metadata: PackageReleaseMetadata? = nil
 
-        let response = try self.client.createPackageRelease(scope: scope,
-                                                            name: "bad",
-                                                            version: "1.0.0",
-                                                            sourceArchive: archive,
-                                                            metadata: metadata,
-                                                            deadline: NIODeadline.now() + .seconds(3)).wait()
-        XCTAssertEqual(.unprocessableEntity, response.status)
-        XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
-        XCTAssertEqual("1", response.headers["Content-Version"].first)
+        runAsyncAndWaitFor {
+            let response = try await self.client.createPackageRelease(scope: scope,
+                                                                      name: "bad",
+                                                                      version: "1.0.0",
+                                                                      sourceArchive: archive,
+                                                                      metadata: metadata,
+                                                                      deadline: NIODeadline.now() + .seconds(3))
+            XCTAssertEqual(.unprocessableEntity, response.status)
+            XCTAssertEqual(true, response.headers["Content-Type"].first?.contains("application/problem+json"))
+            XCTAssertEqual("1", response.headers["Content-Version"].first)
 
-        guard let problemDetails: ProblemDetails = try response.decodeBody() else {
-            return XCTFail("ProblemDetails should not be nil")
+            guard let problemDetails: ProblemDetails = try response.decodeBody() else {
+                return XCTFail("ProblemDetails should not be nil")
+            }
+            XCTAssertEqual(HTTPResponseStatus.unprocessableEntity.code, problemDetails.status)
         }
-        XCTAssertEqual(HTTPResponseStatus.unprocessableEntity.code, problemDetails.status)
     }
 
     // MARK: - Delete package release
@@ -196,7 +204,7 @@ final class BasicAPITests: XCTestCase {
         let scope = "apple-\(UUID().uuidString.prefix(6))"
         let name = "swift-service-discovery"
         let versions = ["1.0.0"]
-        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+        self.createPackageReleases(scope: scope, name: name, versions: versions)
 
         let response = try self.client.httpClient.delete(url: "\(self.url!)/\(scope)/\(name)/\(versions[0])").wait()
         XCTAssertEqual(.noContent, response.status)
@@ -221,7 +229,7 @@ final class BasicAPITests: XCTestCase {
         let scope = "apple-\(UUID().uuidString.prefix(6))"
         let name = "swift-service-discovery"
         let versions = ["1.0.0"]
-        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+        self.createPackageReleases(scope: scope, name: name, versions: versions)
 
         // First delete should be ok (with .zip)
         do {
@@ -249,7 +257,7 @@ final class BasicAPITests: XCTestCase {
         let scope = "apple-\(UUID().uuidString.prefix(6))"
         let name = "swift-nio"
         let versions = ["1.14.2", "2.29.0", "2.30.0"]
-        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+        self.createPackageReleases(scope: scope, name: name, versions: versions)
 
         // Delete one of the versions
         do {
@@ -301,7 +309,7 @@ final class BasicAPITests: XCTestCase {
         let scope = "apple-\(UUID().uuidString.prefix(6))"
         let name = "swift-nio"
         let versions = ["1.14.2", "2.29.0", "2.30.0"]
-        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+        self.createPackageReleases(scope: scope, name: name, versions: versions)
 
         // Test .json suffix, case-insensitivity
         let urls = [
@@ -355,7 +363,7 @@ final class BasicAPITests: XCTestCase {
         let scope = "apple-\(UUID().uuidString.prefix(6))"
         let name = "swift-nio"
         let versions = ["1.14.2"]
-        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+        self.createPackageReleases(scope: scope, name: name, versions: versions)
 
         // Delete the package release
         do {
@@ -393,7 +401,7 @@ final class BasicAPITests: XCTestCase {
         let scope = "apple-\(UUID().uuidString.prefix(6))"
         let name = "swift-nio"
         let versions = ["1.14.2"]
-        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+        self.createPackageReleases(scope: scope, name: name, versions: versions)
 
         let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/\(name)/1.0.0").wait() // 1.0.0 does not exist
         XCTAssertEqual(.notFound, response.status)
@@ -412,7 +420,7 @@ final class BasicAPITests: XCTestCase {
         let scope = "sunshinejr-\(UUID().uuidString.prefix(6))"
         let name = "SwiftyUserDefaults"
         let versions = ["5.3.0"]
-        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+        self.createPackageReleases(scope: scope, name: name, versions: versions)
 
         // Case-insensitivity
         let urls = ["\(self.url!)/\(scope)/\(name)/5.3.0/Package.swift", "\(self.url!)/\(scope)/\(name.uppercased())/5.3.0/Package.swift"]
@@ -468,7 +476,7 @@ final class BasicAPITests: XCTestCase {
         let scope = "sunshinejr-\(UUID().uuidString.prefix(6))"
         let name = "SwiftyUserDefaults"
         let versions = ["5.3.0"]
-        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+        self.createPackageReleases(scope: scope, name: name, versions: versions)
 
         let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/\(name)/5.3.0/Package.swift?swift-version=5.0").wait()
         XCTAssertEqual(.ok, response.status)
@@ -487,7 +495,7 @@ final class BasicAPITests: XCTestCase {
         let scope = "sunshinejr-\(UUID().uuidString.prefix(6))"
         let name = "SwiftyUserDefaults"
         let versions = ["5.3.0"]
-        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+        self.createPackageReleases(scope: scope, name: name, versions: versions)
 
         // Delete the package release
         do {
@@ -525,7 +533,7 @@ final class BasicAPITests: XCTestCase {
         let scope = "sunshinejr-\(UUID().uuidString.prefix(6))"
         let name = "SwiftyUserDefaults"
         let versions = ["5.3.0"]
-        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+        self.createPackageReleases(scope: scope, name: name, versions: versions)
 
         let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/\(name)/1.0.0/Package.swift").wait() // 1.0.0 does not exist
         XCTAssertEqual(.notFound, response.status)
@@ -544,7 +552,7 @@ final class BasicAPITests: XCTestCase {
         let scope = "apple-\(UUID().uuidString.prefix(6))"
         let name = "swift-service-discovery"
         let versions = ["1.0.0"]
-        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+        self.createPackageReleases(scope: scope, name: name, versions: versions)
 
         // Case-insensitivity
         let urls = ["\(self.url!)/\(scope)/\(name)/1.0.0.zip", "\(self.url!)/\(scope)/\(name.uppercased())/1.0.0.zip"]
@@ -579,7 +587,7 @@ final class BasicAPITests: XCTestCase {
         let scope = "apple-\(UUID().uuidString.prefix(6))"
         let name = "swift-service-discovery"
         let versions = ["1.0.0"]
-        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+        self.createPackageReleases(scope: scope, name: name, versions: versions)
 
         // Delete the package release
         do {
@@ -617,7 +625,7 @@ final class BasicAPITests: XCTestCase {
         let scope = "apple-\(UUID().uuidString.prefix(6))"
         let name = "swift-service-discovery"
         let versions = ["1.0.0"]
-        try self.createPackageReleases(scope: scope, name: name, versions: versions)
+        self.createPackageReleases(scope: scope, name: name, versions: versions)
 
         let response = try self.client.httpClient.get(url: "\(self.url!)/\(scope)/\(name)/0.0.1.zip").wait() // 0.0.1 does not exist
         XCTAssertEqual(.notFound, response.status)
@@ -646,14 +654,16 @@ final class BasicAPITests: XCTestCase {
             let repositoryURL = archiveMetadata.repositoryURL.replacingOccurrences(of: archiveMetadata.scope, with: scope)
             let metadata = PackageReleaseMetadata(repositoryURL: repositoryURL, commitHash: archiveMetadata.commitHash)
 
-            let response = try self.client.createPackageRelease(scope: scope,
-                                                                name: name,
-                                                                version: version,
-                                                                sourceArchive: archive,
-                                                                metadata: metadata,
-                                                                deadline: NIODeadline.now() + .seconds(3)).wait()
+            runAsyncAndWaitFor {
+                let response = try await self.client.createPackageRelease(scope: scope,
+                                                                          name: name,
+                                                                          version: version,
+                                                                          sourceArchive: archive,
+                                                                          metadata: metadata,
+                                                                          deadline: NIODeadline.now() + .seconds(3))
 
-            XCTAssertEqual(.created, response.status)
+                XCTAssertEqual(.created, response.status)
+            }
 
             return repositoryURL
         }
@@ -749,33 +759,36 @@ final class BasicAPITests: XCTestCase {
         XCTAssertEqual(expectedAllowedMethods, allowedMethods)
     }
 
-    private func createPackageReleases(scope: String, name: String, versions: [String]) throws {
-        let futures: [EventLoopFuture<Void>] = versions.map { version in
-            guard let archiveMetadata = self.sourceArchives.first(where: { $0.name == name && $0.version == version }) else {
-                return client.eventLoopGroup.next().makeFailedFuture(StringError(message: "Source archive not found"))
-            }
+    private func createPackageReleases(scope: String, name: String, versions: [String]) {
+        runAsyncAndWaitFor({
+            try await withThrowingTaskGroup(of: (String, HTTPClient.Response).self) { group in
+                for version in versions {
+                    group.addTask {
+                        guard let archiveMetadata = self.sourceArchives.first(where: { $0.name == name && $0.version == version }) else {
+                            throw StringError(message: "Source archive for version \(version) not found")
+                        }
 
-            let archiveURL = URL(fileURLWithPath: #file).deletingLastPathComponent()
-                .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent(archiveMetadata.filename)
-            do {
-                let archive = try Data(contentsOf: archiveURL)
-                let repositoryURL = archiveMetadata.repositoryURL.replacingOccurrences(of: archiveMetadata.scope, with: scope)
-                let metadata = PackageReleaseMetadata(repositoryURL: repositoryURL, commitHash: archiveMetadata.commitHash)
+                        let archiveURL = URL(fileURLWithPath: #file).deletingLastPathComponent()
+                            .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent(archiveMetadata.filename)
+                        let archive = try Data(contentsOf: archiveURL)
+                        let repositoryURL = archiveMetadata.repositoryURL.replacingOccurrences(of: archiveMetadata.scope, with: scope)
+                        let metadata = PackageReleaseMetadata(repositoryURL: repositoryURL, commitHash: archiveMetadata.commitHash)
 
-                return self.client.createPackageRelease(scope: scope,
-                                                        name: name,
-                                                        version: version,
-                                                        sourceArchive: archive,
-                                                        metadata: metadata,
-                                                        deadline: NIODeadline.now() + .seconds(20)).map { response in
-                    XCTAssertEqual(.created, response.status)
+                        let response = try await self.client.createPackageRelease(scope: scope,
+                                                                                  name: name,
+                                                                                  version: version,
+                                                                                  sourceArchive: archive,
+                                                                                  metadata: metadata,
+                                                                                  deadline: NIODeadline.now() + .seconds(20))
+                        return (version, response)
+                    }
                 }
-            } catch {
-                return client.eventLoopGroup.next().makeFailedFuture(error)
-            }
-        }
 
-        try EventLoopFuture.andAllSucceed(futures, on: self.client.eventLoopGroup.next()).wait()
+                while let (version, response) = try await group.next() {
+                    XCTAssertEqual(.created, response.status, "Create package release \(version) failed with status \(response.status)")
+                }
+            }
+        }, TimeInterval(versions.count * 20))
     }
 }
 
@@ -841,5 +854,17 @@ private extension HTTPClient.Response {
         let algorithm = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
         let checksum = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
         return Digest(algorithm: algorithm, checksum: checksum)
+    }
+}
+
+private extension XCTestCase {
+    // TODO: remove once XCTest supports async functions
+    func runAsyncAndWaitFor(_ closure: @escaping () async throws -> Void, _ timeout: TimeInterval = 10.0) {
+        let finished = expectation(description: "finished")
+        Task.detached {
+            try await closure()
+            finished.fulfill()
+        }
+        wait(for: [finished], timeout: timeout)
     }
 }

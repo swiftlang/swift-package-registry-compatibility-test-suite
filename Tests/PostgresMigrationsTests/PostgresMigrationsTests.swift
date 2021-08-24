@@ -81,7 +81,7 @@ final class Tests: XCTestCase {
     }
 }
 
-extension XCTestCase {
+private extension XCTestCase {
     // TODO: remove once XCTest supports async functions
     func runAsyncAndWaitFor(_ closure: @escaping () async throws -> Void, _ timeout: TimeInterval = 1.0) {
         let finished = expectation(description: "finished")

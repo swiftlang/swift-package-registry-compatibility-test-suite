@@ -12,6 +12,7 @@
 
 import Foundation
 
+import _NIOConcurrency
 import AsyncHTTPClient
 import Atomics
 import Logging
@@ -19,12 +20,11 @@ import NIO
 import NIOHTTP1
 
 public struct PackageRegistryClient {
-    private typealias EventLoopGroupContainer = (value: EventLoopGroup, managed: Bool)
+    private typealias HTTPClientContainer = (value: HTTPClient, managed: Bool)
 
-    private let eventLoopGroupContainer: EventLoopGroupContainer
+    private let httpClientContainer: HTTPClientContainer
     private let configuration: Configuration
 
-    private let client: HTTPClient
     private let encoder: JSONEncoder
     private let logger: Logger
 
@@ -35,25 +35,20 @@ public struct PackageRegistryClient {
     }
 
     public var httpClient: HTTPClient {
-        self.client
+        self.httpClientContainer.value
     }
 
-    public var eventLoopGroup: EventLoopGroup {
-        self.eventLoopGroupContainer.value
-    }
-
-    public init(eventLoopGroupProvider: EventLoopGroupProvider = .createNew, configuration: Configuration, logger: Logger? = nil) {
-        let eventLoopGroupContainer: EventLoopGroupContainer
-        switch eventLoopGroupProvider {
+    public init(httpClientProvider: HTTPClientProvider = .createNew, configuration: Configuration, logger: Logger? = nil) {
+        let httpClientContainer: HTTPClientContainer
+        switch httpClientProvider {
         case .createNew:
-            eventLoopGroupContainer = (value: MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount), managed: true)
-        case .shared(let eventLoopGroup):
-            eventLoopGroupContainer = (value: eventLoopGroup, managed: false)
+            httpClientContainer = (value: HTTPClient(eventLoopGroupProvider: .createNew), managed: true)
+        case .shared(let httpClient):
+            httpClientContainer = (value: httpClient, managed: false)
         }
 
-        self.eventLoopGroupContainer = eventLoopGroupContainer
+        self.httpClientContainer = httpClientContainer
         self.configuration = configuration
-        self.client = HTTPClient(eventLoopGroupProvider: .shared(eventLoopGroupContainer.value), configuration: .from(configuration))
         self.encoder = JSONEncoder()
         self.logger = logger ?? Logger(label: "PackageRegistryClient")
     }
@@ -64,14 +59,9 @@ public struct PackageRegistryClient {
         }
 
         var lastError: Swift.Error?
-        do {
-            try self.client.syncShutdown()
-        } catch {
-            lastError = error
-        }
-        if self.eventLoopGroupContainer.managed {
+        if self.httpClientContainer.managed {
             do {
-                try self.eventLoopGroup.syncShutdownGracefully()
+                try self.httpClient.syncShutdown()
             } catch {
                 lastError = error
             }
@@ -90,17 +80,17 @@ public struct PackageRegistryClient {
     ///   - sourceArchive: Source archive bytes. The archive must be generated using the `swift package archive-source` tool.
     ///                    The server will then use the `swift package compute-checksum` tool to compute the checksum.
     ///   - metadataJSON: Optional JSON-encoded metadata for the package release. See server documentation for the supported format.
+    ///   - httpHeaders: Optional HTTP headers. Authentication token should be supplied via this.
     ///   - deadline: The deadline by which the request must complete or else would result in timed out error.
-    ///
-    /// - Todo: support authentication
     public func createPackageRelease(scope: String,
                                      name: String,
                                      version: String,
                                      sourceArchive: Data,
                                      metadataJSON: Data? = nil,
-                                     deadline: NIODeadline? = nil) -> EventLoopFuture<HTTPClient.Response> {
+                                     httpHeaders: HTTPHeaders? = nil,
+                                     deadline: NIODeadline? = nil) async throws -> HTTPClient.Response {
         guard !sourceArchive.isEmpty else {
-            return self.eventLoopGroup.next().makeFailedFuture(PackageRegistryClientError.emptySourceArchive)
+            throw PackageRegistryClientError.emptySourceArchive
         }
 
         let sourceArchivePart = """
@@ -117,7 +107,7 @@ public struct PackageRegistryClient {
             metadataJSONString = String(data: metadataJSON, encoding: .utf8)
             guard metadataJSONString != nil else {
                 self.logger.warning("Failed to convert metadata to JSON string")
-                return self.eventLoopGroup.next().makeFailedFuture(PackageRegistryClientError.invalidMetadata)
+                throw PackageRegistryClientError.invalidMetadata
             }
         } else {
             metadataJSONString = "{}"
@@ -141,10 +131,10 @@ public struct PackageRegistryClient {
         """
 
         guard let requestBodyData = requestBodyString.data(using: .utf8) else {
-            return self.eventLoopGroup.next().makeFailedFuture(PackageRegistryClientError.invalidRequestBody)
+            throw PackageRegistryClientError.invalidRequestBody
         }
 
-        var headers = HTTPHeaders()
+        var headers = httpHeaders ?? HTTPHeaders()
         headers.replaceOrAdd(name: "Accept", value: "application/vnd.swift.registry.v1+json")
         headers.replaceOrAdd(name: "Content-Type", value: "multipart/form-data;boundary=\"boundary\"")
         headers.replaceOrAdd(name: "Content-Length", value: "\(requestBodyData.count)")
@@ -153,13 +143,15 @@ public struct PackageRegistryClient {
         let requestBody = HTTPClient.Body.data(requestBodyData)
         let url = "\(self.configuration.url)/\(scope)/\(name)/\(version)"
 
+        let request: HTTPClient.Request
         do {
-            let request = try HTTPClient.Request(url: url, method: .PUT, headers: headers, body: requestBody)
-            return self.client.execute(request: request, deadline: deadline ?? (NIODeadline.now() + self.configuration.defaultRequestTimeout))
+            request = try HTTPClient.Request(url: url, method: .PUT, headers: headers, body: requestBody)
         } catch {
             self.logger.warning("Failed to create request: \(error)")
-            return self.eventLoopGroup.next().makeFailedFuture(PackageRegistryClientError.invalidRequest)
+            throw PackageRegistryClientError.invalidRequest
         }
+
+        return try await self.httpClient.execute(request: request, deadline: deadline ?? (NIODeadline.now() + self.configuration.defaultRequestTimeout)).get()
     }
 
     public func createPackageRelease(scope: String,
@@ -167,10 +159,11 @@ public struct PackageRegistryClient {
                                      version: String,
                                      sourceArchive: Data,
                                      metadataJSON: String? = nil,
-                                     deadline: NIODeadline? = nil) -> EventLoopFuture<HTTPClient.Response> {
+                                     httpHeaders: HTTPHeaders? = nil,
+                                     deadline: NIODeadline? = nil) async throws -> HTTPClient.Response {
         let metadataJSON = metadataJSON.flatMap { $0.data(using: .utf8) }
-        return self.createPackageRelease(scope: scope, name: name, version: version, sourceArchive: sourceArchive,
-                                         metadataJSON: metadataJSON, deadline: deadline)
+        return try await self.createPackageRelease(scope: scope, name: name, version: version, sourceArchive: sourceArchive,
+                                                   metadataJSON: metadataJSON, httpHeaders: httpHeaders, deadline: deadline)
     }
 
     public func createPackageRelease<Metadata: Codable>(scope: String,
@@ -178,30 +171,31 @@ public struct PackageRegistryClient {
                                                         version: String,
                                                         sourceArchive: Data,
                                                         metadata: Metadata? = nil,
-                                                        deadline: NIODeadline? = nil) -> EventLoopFuture<HTTPClient.Response> {
+                                                        httpHeaders: HTTPHeaders? = nil,
+                                                        deadline: NIODeadline? = nil) async throws -> HTTPClient.Response {
+        let metadataJSON: Data?
         do {
-            let metadataJSON = try metadata.map { try self.encoder.encode($0) }
-            return self.createPackageRelease(scope: scope, name: name, version: version, sourceArchive: sourceArchive,
-                                             metadataJSON: metadataJSON, deadline: deadline)
+            metadataJSON = try metadata.map { try self.encoder.encode($0) }
         } catch {
             self.logger.warning("Failed to encode metadata \(String(describing: metadata)): \(error)")
-            return self.eventLoopGroup.next().makeFailedFuture(PackageRegistryClientError.invalidMetadata)
+            throw PackageRegistryClientError.invalidMetadata
         }
+
+        return try await self.createPackageRelease(scope: scope, name: name, version: version, sourceArchive: sourceArchive,
+                                                   metadataJSON: metadataJSON, httpHeaders: httpHeaders, deadline: deadline)
     }
 
-    public enum EventLoopGroupProvider {
-        case shared(EventLoopGroup)
+    public enum HTTPClientProvider {
+        case shared(HTTPClient)
         case createNew
     }
 
     public struct Configuration {
         public var url: String
-        public var tls: Bool
         public var defaultRequestTimeout: TimeAmount
 
-        public init(url: String, tls: Bool, defaultRequestTimeout: TimeAmount? = nil) {
+        public init(url: String, defaultRequestTimeout: TimeAmount? = nil) {
             self.url = url
-            self.tls = tls
             self.defaultRequestTimeout = defaultRequestTimeout ?? .milliseconds(500)
         }
     }
@@ -212,14 +206,4 @@ public enum PackageRegistryClientError: Error {
     case invalidMetadata
     case invalidRequestBody
     case invalidRequest
-}
-
-private extension HTTPClient.Configuration {
-    static func from(_ configuration: PackageRegistryClient.Configuration) -> HTTPClient.Configuration {
-        var config = HTTPClient.Configuration()
-        if configuration.tls {
-            config.tlsConfiguration = .clientDefault
-        }
-        return config
-    }
 }
