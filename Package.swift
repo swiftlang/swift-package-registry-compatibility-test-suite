@@ -82,12 +82,10 @@ let package = Package(
             "PostgresMigrations",
         ]),
 
-        .testTarget(name: "PackageRegistryTests",
-                    dependencies: [
-                        "PackageRegistryModels",
-                        "PackageRegistryClient",
-                        .product(name: "Crypto", package: "swift-crypto"),
-                    ],
-                    exclude: ["Resources/"]),
+        .testTarget(name: "PackageRegistryTests", dependencies: [
+            "PackageRegistryModels",
+            "PackageRegistryClient",
+            .product(name: "Crypto", package: "swift-crypto"),
+        ]),
     ]
 )
