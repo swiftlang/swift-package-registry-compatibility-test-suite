@@ -205,7 +205,7 @@ extension TestConfigurationGenerator {
 
         struct CreatePackageRelease: Codable {
             /// See `CreatePackageReleaseTests.Configuration.maxProcessingTimeInSeconds`
-            let maxProcessingTimeInSeconds: Int
+            @DecodableDefault.MaxPublicationTimeInSeconds var maxProcessingTimeInSeconds: Int
         }
     }
 }

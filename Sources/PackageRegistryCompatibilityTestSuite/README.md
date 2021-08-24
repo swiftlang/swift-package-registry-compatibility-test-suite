@@ -107,7 +107,7 @@ The test configuration is a `createPackageRelease` JSON object with the followin
   - `version`: The package release version.
   - `sourceArchivePath`: The path of the source archive, which can be absolute or relative. If the latter, the tool will assume the parent directory of the configuration file (i.e., the `config-path` argument) as the base directory.
   - `metadataPath`: The path of an optional JSON file containing metadata for the package release, which can be absolute or relative. If the latter, the tool will assume the parent directory of the configuration file (i.e., the `config-path` argument) as the base directory.
-- `maxProcessingTimeInSeconds`: The maximum processing time in seconds before the test considers the publication has failed.
+- `maxProcessingTimeInSeconds`: The maximum processing time in seconds before the test considers the publication has failed. Optional.
 
 ###### Sample configuration
 
@@ -148,7 +148,7 @@ The following key-values are **required** in the configuration file:
     - `versionManifests`: An array of Swift version strings with version-specific manifest. This is optional, but it is recommended for there to be at least one package release with version-specific manifests such that the "fetch package manifest" API can be tested properly.
 
 The `createPackageRelease` object is also required:
-- `maxProcessingTimeInSeconds`: The maximum processing time in seconds before the test considers the publication has failed.
+- `maxProcessingTimeInSeconds`: The maximum processing time in seconds before the test considers the publication has failed. Optional.
 
 The tool will use these configurations to construct the `createPackageRelease` configuration described in the previous section to
 call the "create package release" API to create package releases for testing.

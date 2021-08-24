@@ -182,7 +182,12 @@ extension CreatePackageReleaseTests {
         var packageReleases: [PackageReleaseInfo]
 
         /// Maximum processing time in seconds before the test considers publication has failed
-        let maxProcessingTimeInSeconds: Int
+        @DecodableDefault.MaxPublicationTimeInSeconds var maxProcessingTimeInSeconds: Int
+
+        init(packageReleases: [PackageReleaseInfo], maxProcessingTimeInSeconds: Int) {
+            self.packageReleases = packageReleases
+            self.maxProcessingTimeInSeconds = maxProcessingTimeInSeconds
+        }
 
         struct PackageReleaseInfo: Codable {
             /// Package scope and name. These will be used for publication if specified,
