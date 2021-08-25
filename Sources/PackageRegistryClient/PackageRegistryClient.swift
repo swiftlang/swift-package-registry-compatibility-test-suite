@@ -80,14 +80,14 @@ public struct PackageRegistryClient {
     ///   - sourceArchive: Source archive bytes. The archive must be generated using the `swift package archive-source` tool.
     ///                    The server will then use the `swift package compute-checksum` tool to compute the checksum.
     ///   - metadataJSON: Optional JSON-encoded metadata for the package release. See server documentation for the supported format.
-    ///   - httpHeaders: Optional HTTP headers. Authentication token should be supplied via this.
+    ///   - headers: Optional HTTP headers. Authentication token should be supplied via this.
     ///   - deadline: The deadline by which the request must complete or else would result in timed out error.
     public func createPackageRelease(scope: String,
                                      name: String,
                                      version: String,
                                      sourceArchive: Data,
                                      metadataJSON: Data? = nil,
-                                     httpHeaders: HTTPHeaders? = nil,
+                                     headers: HTTPHeaders? = nil,
                                      deadline: NIODeadline? = nil) async throws -> HTTPClient.Response {
         guard !sourceArchive.isEmpty else {
             throw PackageRegistryClientError.emptySourceArchive
@@ -134,7 +134,7 @@ public struct PackageRegistryClient {
             throw PackageRegistryClientError.invalidRequestBody
         }
 
-        var headers = httpHeaders ?? HTTPHeaders()
+        var headers = headers ?? HTTPHeaders()
         headers.replaceOrAdd(name: "Accept", value: "application/vnd.swift.registry.v1+json")
         headers.replaceOrAdd(name: "Content-Type", value: "multipart/form-data;boundary=\"boundary\"")
         headers.replaceOrAdd(name: "Content-Length", value: "\(requestBodyData.count)")
@@ -159,11 +159,11 @@ public struct PackageRegistryClient {
                                      version: String,
                                      sourceArchive: Data,
                                      metadataJSON: String? = nil,
-                                     httpHeaders: HTTPHeaders? = nil,
+                                     headers: HTTPHeaders? = nil,
                                      deadline: NIODeadline? = nil) async throws -> HTTPClient.Response {
         let metadataJSON = metadataJSON.flatMap { $0.data(using: .utf8) }
         return try await self.createPackageRelease(scope: scope, name: name, version: version, sourceArchive: sourceArchive,
-                                                   metadataJSON: metadataJSON, httpHeaders: httpHeaders, deadline: deadline)
+                                                   metadataJSON: metadataJSON, headers: headers, deadline: deadline)
     }
 
     public func createPackageRelease<Metadata: Codable>(scope: String,
@@ -171,7 +171,7 @@ public struct PackageRegistryClient {
                                                         version: String,
                                                         sourceArchive: Data,
                                                         metadata: Metadata? = nil,
-                                                        httpHeaders: HTTPHeaders? = nil,
+                                                        headers: HTTPHeaders? = nil,
                                                         deadline: NIODeadline? = nil) async throws -> HTTPClient.Response {
         let metadataJSON: Data?
         do {
@@ -182,7 +182,7 @@ public struct PackageRegistryClient {
         }
 
         return try await self.createPackageRelease(scope: scope, name: name, version: version, sourceArchive: sourceArchive,
-                                                   metadataJSON: metadataJSON, httpHeaders: httpHeaders, deadline: deadline)
+                                                   metadataJSON: metadataJSON, headers: headers, deadline: deadline)
     }
 
     public enum HTTPClientProvider {

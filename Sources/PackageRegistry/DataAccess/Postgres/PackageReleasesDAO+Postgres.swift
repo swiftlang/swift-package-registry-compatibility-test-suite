@@ -43,30 +43,36 @@ extension PostgresDataAccess {
                 // Insert into three tables, commit iff all succeed
                 try await connection.query("BEGIN;")
 
-                // package_resources
-                let packageResource = try await self.packageResources.create(package: package, version: version, type: .sourceArchive,
-                                                                             checksum: checksum, bytes: sourceArchive)
-                // package_manifests
-                let packageManifests: [PackageRegistryModel.PackageManifest] =
-                    try await withThrowingTaskGroup(of: PackageRegistryModel.PackageManifest.self) { group in
-                        var packageManifests = [PackageRegistryModel.PackageManifest]()
-                        for manifest in manifests {
-                            group.addTask {
-                                try await self.packageManifests.create(package: package, version: version, swiftVersion: manifest.0,
-                                                                       filename: manifest.1, swiftToolsVersion: manifest.2, bytes: manifest.3)
+                do {
+                    // package_resources
+                    let packageResource = try await self.packageResources.create(package: package, version: version, type: .sourceArchive,
+                                                                                 checksum: checksum, bytes: sourceArchive)
+                    // package_manifests
+                    let packageManifests: [PackageRegistryModel.PackageManifest] =
+                        try await withThrowingTaskGroup(of: PackageRegistryModel.PackageManifest.self) { group in
+                            var packageManifests = [PackageRegistryModel.PackageManifest]()
+                            for manifest in manifests {
+                                group.addTask {
+                                    try await self.packageManifests.create(package: package, version: version, swiftVersion: manifest.0,
+                                                                           filename: manifest.1, swiftToolsVersion: manifest.2, bytes: manifest.3)
+                                }
                             }
+                            while let manifest = try await group.next() {
+                                packageManifests.append(manifest)
+                            }
+                            return packageManifests
                         }
-                        while let manifest = try await group.next() {
-                            packageManifests.append(manifest)
-                        }
-                        return packageManifests
-                    }
-                // package_releases
-                let packageRelease = try await self.create(package: package, version: version, repositoryURL: repositoryURL, commitHash: commitHash)
 
-                try await connection.query("COMMIT;")
+                    // package_releases
+                    let packageRelease = try await self.create(package: package, version: version, repositoryURL: repositoryURL, commitHash: commitHash)
 
-                return (packageRelease, packageResource, packageManifests)
+                    try await connection.query("COMMIT;")
+
+                    return (packageRelease, packageResource, packageManifests)
+                } catch {
+                    try await connection.query("ROLLBACK;")
+                    throw error
+                }
             }
         }
 
