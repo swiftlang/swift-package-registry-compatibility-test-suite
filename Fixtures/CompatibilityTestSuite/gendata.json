@@ -29,5 +29,11 @@
     ],
     "createPackageRelease": {
         "maxProcessingTimeInSeconds": 10
+    },
+    "listPackageReleases": {
+        "linkHeaderIsSet": true,
+        "packageURLProvided": true,
+        "problemProvided": true,
+        "paginationSupported": false
     }
 }

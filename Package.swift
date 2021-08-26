@@ -102,6 +102,9 @@ let package = Package(
 
         .testTarget(name: "PackageRegistryCompatibilityTestSuiteTests", dependencies: [
             "PackageRegistryCompatibilityTestSuite",
+            "PackageRegistryModels",
+            "PackageRegistryClient",
+            .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
         ]),
     ]
 )

@@ -80,8 +80,9 @@ final class CreatePackageReleaseTests: APITest {
         }
 
         for packageRelease in self.configuration.packageReleases {
-            let scope = packageRelease.package?.scope ?? randomScope
-            let name = packageRelease.package?.name ?? randomName
+            // Also test case-insensitivity
+            let scope = (packageRelease.package?.scope ?? randomScope).flipcased
+            let name = (packageRelease.package?.name ?? randomName).flipcased
 
             self.log.append(await TestCase(name: "Publish duplicate package release \(scope).\(name)@\(packageRelease.version)") { testCase in
                 let response = try await self.createPackageRelease(packageRelease, scope: scope, name: name, for: &testCase)

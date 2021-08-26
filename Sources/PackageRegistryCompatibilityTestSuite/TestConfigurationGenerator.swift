@@ -90,8 +90,13 @@ struct TestConfigurationGenerator {
             return PackageDescriptor(id: package, repositoryURL: element.repositoryURL, releases: releases)
         }
 
+        let unknownPackages = self.randomPackageIdentities(count: 1)
+
         return PackageRegistryCompatibilityTestSuite.Configuration(
-            createPackageRelease: self.buildCreatePackageRelease(packages: packages, configuration: configuration.createPackageRelease)
+            createPackageRelease: self.buildCreatePackageRelease(packages: packages, configuration: configuration.createPackageRelease),
+            listPackageReleases: configuration.listPackageReleases.map {
+                self.buildListPackageReleases(packages: packages, unknownPackages: unknownPackages, configuration: $0)
+            }
         )
     }
 
@@ -105,6 +110,26 @@ struct TestConfigurationGenerator {
                 }
             },
             maxProcessingTimeInSeconds: configuration.maxProcessingTimeInSeconds
+        )
+    }
+
+    private func buildListPackageReleases(packages: [PackageDescriptor],
+                                          unknownPackages: [PackageIdentity],
+                                          configuration: Configuration.ListPackageReleases) -> ListPackageReleasesTests.Configuration {
+        ListPackageReleasesTests.Configuration(
+            packages: packages.map { package in
+                .init(
+                    package: package.id,
+                    numberOfReleases: package.releases.count,
+                    versions: Set(package.releases.map(\.version.description)),
+                    unavailableVersions: nil, // TODO: add support for this when DELETE package release API is defined
+                    linkRelations: configuration.linkHeaderIsSet ? ["latest-version"] : nil
+                )
+            },
+            unknownPackages: Set(unknownPackages),
+            packageURLProvided: configuration.packageURLProvided,
+            problemProvided: configuration.problemProvided,
+            paginationSupported: configuration.paginationSupported
         )
     }
 
@@ -176,6 +201,9 @@ extension TestConfigurationGenerator {
         /// For creating `CreatePackageReleaseTests.Configuration`
         let createPackageRelease: CreatePackageRelease
 
+        /// For creating `ListPackageReleasesTests.Configuration`
+        let listPackageReleases: ListPackageReleases?
+
         struct PackageInfo: Codable {
             /// Identity to use for the test package. A random identity is generated if this is unspecified.
             let id: PackageIdentity?
@@ -206,6 +234,20 @@ extension TestConfigurationGenerator {
         struct CreatePackageRelease: Codable {
             /// See `CreatePackageReleaseTests.Configuration.maxProcessingTimeInSeconds`
             @DecodableDefault.MaxPublicationTimeInSeconds var maxProcessingTimeInSeconds: Int
+        }
+
+        struct ListPackageReleases: Codable {
+            /// If `true`, the generator will set `PackageExpectation.linkRelations` accordingly.
+            let linkHeaderIsSet: Bool
+
+            /// See `ListPackageReleasesTests.Configuration.packageURLProvided`
+            let packageURLProvided: Bool
+
+            /// See `ListPackageReleasesTests.Configuration.problemProvided`
+            let problemProvided: Bool
+
+            /// See `ListPackageReleasesTests.Configuration.paginationSupported`
+            let paginationSupported: Bool
         }
     }
 }

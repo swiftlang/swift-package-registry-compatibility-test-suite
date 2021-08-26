@@ -17,7 +17,7 @@ import PackageRegistryClient
 @testable import PackageRegistryCompatibilityTestSuite
 import TSCBasic
 
-final class AllCommandTests: XCTestCase {
+final class ListPackageReleasesCommandTests: XCTestCase {
     private var sourceArchives: [SourceArchiveMetadata]!
     private var registryClient: PackageRegistryClient!
 
@@ -38,9 +38,8 @@ final class AllCommandTests: XCTestCase {
     }
 
     func test_help() throws {
-        let result = try executeCommand(command: "package-registry-compatibility all --help")
-        print(result.stderr)
-        XCTAssert(result.stdout.contains("USAGE: package-registry-compatibility all <url> <config-path>"))
+        XCTAssert(try executeCommand(command: "package-registry-compatibility list-package-releases --help")
+            .stdout.contains("USAGE: package-registry-compatibility list-package-releases <url> <config-path>"))
     }
 
     func test_run() throws {
@@ -57,23 +56,6 @@ final class AllCommandTests: XCTestCase {
         let unknownScope = "test-\(UUID().uuidString.prefix(6))"
 
         let config = PackageRegistryCompatibilityTestSuite.Configuration(
-            createPackageRelease: CreatePackageReleaseTests.Configuration(
-                packageReleases: [
-                    .init(
-                        package: nil,
-                        version: "1.0.0",
-                        sourceArchivePath: self.fixturePath(subdirectory: "SourceArchives", filename: "swift-nio@1.14.2.zip"),
-                        metadataPath: self.fixturePath(subdirectory: "CompatibilityTestSuite/Metadata", filename: "swift-nio@1.14.2.json")
-                    ),
-                    .init(
-                        package: nil,
-                        version: "2.0.0",
-                        sourceArchivePath: self.fixturePath(subdirectory: "SourceArchives", filename: "SwiftyUserDefaults@5.3.0.zip"),
-                        metadataPath: self.fixturePath(subdirectory: "CompatibilityTestSuite/Metadata", filename: "SwiftyUserDefaults@5.3.0.json")
-                    ),
-                ],
-                maxProcessingTimeInSeconds: 10
-            ),
             listPackageReleases: ListPackageReleasesTests.Configuration(
                 packages: [
                     .init(
@@ -96,16 +78,14 @@ final class AllCommandTests: XCTestCase {
             let configPath = directoryPath.appending(component: "config.json")
             try localFileSystem.writeFileContents(configPath, bytes: ByteString(Array(configData)))
 
-            let stdout = try self.executeCommand(subcommand: "all", configPath: configPath.pathString, generateData: false).stdout
-            XCTAssert(stdout.contains("Create Package Release - All tests passed."))
-            XCTAssert(stdout.contains("List Package Releases - All tests passed."))
+            XCTAssert(try self.executeCommand(subcommand: "list-package-releases", configPath: configPath.pathString, generateData: false)
+                .stdout.contains("List Package Releases - All tests passed."))
         }
     }
 
     func test_run_generateConfig() throws {
         let configPath = self.fixturePath(filename: "gendata.json")
-        let stdout = try self.executeCommand(subcommand: "all", configPath: configPath, generateData: true).stdout
-        XCTAssert(stdout.contains("Create Package Release - All tests passed."))
-        XCTAssert(stdout.contains("List Package Releases - All tests passed."))
+        XCTAssert(try self.executeCommand(subcommand: "list-package-releases", configPath: configPath, generateData: true)
+            .stdout.contains("List Package Releases - All tests passed."))
     }
 }

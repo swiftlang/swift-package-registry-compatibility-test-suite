@@ -51,6 +51,22 @@ class APITest: @unchecked Sendable {
         }
     }
 
+    func checkContentTypeHeader(_ headers: HTTPHeaders, expected: MediaType, for testCase: inout TestCase) {
+        testCase.mark("\"Content-Type\" response header")
+        guard headers["Content-Type"].first(where: { $0.contains(expected.contentType) }) != nil else {
+            testCase.error("\"Content-Type\" header is required and must contain \"\(expected.contentType)\"")
+            return
+        }
+    }
+
+    func checkHasRelation(_ relation: String, in links: [Link], for testCase: inout TestCase) {
+        testCase.mark("\"\(relation)\" relation in \"Link\" response header")
+        guard links.first(where: { $0.relation == relation }) != nil else {
+            testCase.error("\"Link\" header does not include \"\(relation)\" relation")
+            return
+        }
+    }
+
     func printLog() {
         print("\(self.log)")
     }
@@ -71,6 +87,11 @@ enum MediaType: String {
             return "text/x-swift"
         }
     }
+}
+
+struct Link {
+    let relation: String
+    let url: String
 }
 
 extension AuthenticationToken {
@@ -94,5 +115,27 @@ extension HTTPHeaders {
         if let authorization = token?.authorizationHeader {
             self.replaceOrAdd(name: "Authorization", value: authorization)
         }
+    }
+}
+
+extension HTTPClient.Response {
+    func parseLinkHeader() -> [Link] {
+        self.headers["Link"].map {
+            $0.split(separator: ",").compactMap {
+                let parts = $0.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ";")
+                guard parts.count >= 2 else {
+                    return nil
+                }
+
+                let url = parts[0].trimmingCharacters(in: .whitespacesAndNewlines).dropFirst(1).dropLast(1) // Remove < > from beginning and end
+
+                guard let rel = parts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter({ $0.hasPrefix("rel=") }).first else {
+                    return nil
+                }
+                let relation = String(rel.dropFirst("rel=".count).dropFirst(1).dropLast(1)) // Remove " from beginninng and end
+
+                return Link(relation: relation, url: String(url))
+            }
+        }.flatMap { $0 }
     }
 }
