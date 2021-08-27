@@ -96,6 +96,9 @@ struct TestConfigurationGenerator {
             createPackageRelease: self.buildCreatePackageRelease(packages: packages, configuration: configuration.createPackageRelease),
             listPackageReleases: configuration.listPackageReleases.map {
                 self.buildListPackageReleases(packages: packages, unknownPackages: unknownPackages, configuration: $0)
+            },
+            fetchPackageReleaseInfo: try configuration.fetchPackageReleaseInfo.map {
+                try self.buildFetchPackageReleaseInfo(packages: packages, unknownPackages: unknownPackages, configuration: $0)
             }
         )
     }
@@ -130,6 +133,61 @@ struct TestConfigurationGenerator {
             packageURLProvided: configuration.packageURLProvided,
             problemProvided: configuration.problemProvided,
             paginationSupported: configuration.paginationSupported
+        )
+    }
+
+    private func buildFetchPackageReleaseInfo(packages: [PackageDescriptor],
+                                              unknownPackages: [PackageIdentity],
+                                              configuration: Configuration.FetchPackageReleaseInfo) throws -> FetchPackageReleaseInfoTests.Configuration {
+        func validatableMetadataKeyValue(metadataPath: AbsolutePath?) throws -> [String: String]? {
+            guard let metadataPath = metadataPath else { return nil }
+
+            guard let metadata = try JSONSerialization.jsonObject(with: Data(contentsOf: metadataPath.asURL), options: []) as? [String: Any] else {
+                throw TestError("Metadata file at \(metadataPath) contains invalid JSON")
+            }
+
+            var result = [String: String]()
+            metadata.forEach { key, value in
+                guard let value = value as? String else {
+                    return
+                }
+                result[key] = value
+            }
+            return result.isEmpty ? nil : result
+        }
+
+        func linkRelations(version: Version, versions: [Version]) -> Set<String> {
+            var relations: Set<String> = ["latest-version"]
+
+            guard let index = versions.firstIndex(of: version) else {
+                return relations
+            }
+
+            if index > 0 {
+                relations.insert("predecessor-version")
+            }
+            if index < versions.count - 1 {
+                relations.insert("successor-version")
+            }
+
+            return relations
+        }
+
+        return FetchPackageReleaseInfoTests.Configuration(
+            packageReleases: try packages.flatMap { package -> [FetchPackageReleaseInfoTests.Configuration.PackageReleaseExpectation] in
+                let versions = package.releases.map(\.version).sorted()
+                return try package.releases.map {
+                    .init(
+                        packageRelease: .init(package: package.id, version: $0.version.description),
+                        resources: [.init(name: "source-archive", type: "application/zip", checksum: $0.checksum)],
+                        keyValues: try validatableMetadataKeyValue(metadataPath: $0.metadataPath),
+                        linkRelations: configuration.linkHeaderIsSet ? linkRelations(version: $0.version, versions: versions) : nil
+                    )
+                }
+            },
+            unknownPackageReleases: Set(unknownPackages.map {
+                .init(package: $0, version: "1.0.0")
+            })
         )
     }
 
@@ -204,6 +262,9 @@ extension TestConfigurationGenerator {
         /// For creating `ListPackageReleasesTests.Configuration`
         let listPackageReleases: ListPackageReleases?
 
+        /// For creating `FetchPackageReleaseInfoTests.Configuration`
+        let fetchPackageReleaseInfo: FetchPackageReleaseInfo?
+
         struct PackageInfo: Codable {
             /// Identity to use for the test package. A random identity is generated if this is unspecified.
             let id: PackageIdentity?
@@ -248,6 +309,11 @@ extension TestConfigurationGenerator {
 
             /// See `ListPackageReleasesTests.Configuration.paginationSupported`
             let paginationSupported: Bool
+        }
+
+        struct FetchPackageReleaseInfo: Codable {
+            /// If `true`, the generator will set `PackageReleaseExpectation.linkRelations` accordingly.
+            let linkHeaderIsSet: Bool
         }
     }
 }

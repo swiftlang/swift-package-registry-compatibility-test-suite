@@ -828,7 +828,7 @@ private extension HTTPClient.Response {
             }
 
             let url = parts[0].trimmingCharacters(in: .whitespacesAndNewlines).dropFirst(1).dropLast(1) // Remove < > from beginning and end
-            let rel = parts[1].trimmingCharacters(in: .whitespacesAndNewlines).dropFirst("rel=".count).dropFirst(1).dropLast(1) // Remove " from beginninng and end
+            let rel = parts[1].trimmingCharacters(in: .whitespacesAndNewlines).dropFirst("rel=".count).dropFirst(1).dropLast(1) // Remove " from beginning and end
             return Link(relation: String(rel), url: String(url))
         }
     }
