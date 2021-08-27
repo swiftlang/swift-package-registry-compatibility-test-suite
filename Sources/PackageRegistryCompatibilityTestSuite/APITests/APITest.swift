@@ -12,6 +12,7 @@
 
 import _NIOConcurrency
 import AsyncHTTPClient
+import NIO
 import NIOHTTP1
 
 class APITest: @unchecked Sendable {
@@ -48,6 +49,38 @@ class APITest: @unchecked Sendable {
         guard headers["Content-Version"].first == self.apiVersion else {
             testCase.error("\"Content-Version\" header is required and must be \"\(self.apiVersion)\"")
             return
+        }
+    }
+
+    func checkContentDispositionHeader(_ headers: HTTPHeaders, expectedFilename: String, isRequired: Bool, for testCase: inout TestCase) {
+        testCase.mark("\"Content-Disposition\" response header")
+        let contentDispositionHeader = headers["Content-Disposition"].first
+        if contentDispositionHeader == nil {
+            if isRequired {
+                testCase.error("Missing \"Content-Disposition\" header")
+            } else {
+                testCase.warning("\"Content-Disposition\" header should be set")
+            }
+        } else {
+            let expected = "attachment; filename=\"\(expectedFilename)\""
+            if let contentDispositionHeader = contentDispositionHeader, contentDispositionHeader.lowercased() != expected.lowercased() {
+                testCase.error("Expected \"\(expected)\" for \"Content-Disposition\" header but got \"\(contentDispositionHeader)\"")
+            }
+        }
+    }
+
+    func checkContentLengthHeader(_ headers: HTTPHeaders, responseBody: ByteBuffer?, isRequired: Bool, for testCase: inout TestCase) {
+        testCase.mark("\"Content-Length\" response header")
+        let contentLengthHeader = headers["Content-Length"].first
+        if contentLengthHeader == nil {
+            if isRequired {
+                testCase.error("Missing \"Content-Length\" header")
+            } else {
+                testCase.warning("\"Content-Length\" header should be set")
+            }
+        }
+        if let contentLengthHeader = contentLengthHeader, Int(contentLengthHeader) != responseBody?.readableBytes {
+            testCase.error("Content-Length header (\(contentLengthHeader)) does not match response body length (\(String(describing: responseBody?.readableBytes)))")
         }
     }
 

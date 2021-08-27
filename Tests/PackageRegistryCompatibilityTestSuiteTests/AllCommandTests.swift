@@ -45,14 +45,19 @@ final class AllCommandTests: XCTestCase {
 
     func test_run() throws {
         // Create package releases
-        let scope = "apple-\(UUID().uuidString.prefix(6))"
-        let name = "swift-nio"
-        let versions = ["1.14.2", "2.29.0", "2.30.0"]
-        self.createPackageReleases(scope: scope, name: name, versions: versions, client: self.registryClient, sourceArchives: self.sourceArchives)
+        let nioScope = "apple-\(UUID().uuidString.prefix(6))"
+        let nioName = "swift-nio"
+        let nioVersions = ["1.14.2", "2.29.0", "2.30.0"]
+        self.createPackageReleases(scope: nioScope, name: nioName, versions: nioVersions, client: self.registryClient, sourceArchives: self.sourceArchives)
 
         // Make version 2.29.0 unavailable by deleting it
-        let deleteResponse = try self.registryClient.httpClient.delete(url: "\(self.registryURL)/\(scope)/\(name)/2.29.0").wait()
+        let deleteResponse = try self.registryClient.httpClient.delete(url: "\(self.registryURL)/\(nioScope)/\(nioName)/2.29.0").wait()
         XCTAssertEqual(.noContent, deleteResponse.status)
+
+        let udScope = "sunshinejr-\(UUID().uuidString.prefix(6))"
+        let udName = "SwiftyUserDefaults"
+        let udVersions = ["5.3.0"]
+        self.createPackageReleases(scope: udScope, name: udName, versions: udVersions, client: self.registryClient, sourceArchives: self.sourceArchives)
 
         let unknownScope = "test-\(UUID().uuidString.prefix(6))"
 
@@ -77,9 +82,9 @@ final class AllCommandTests: XCTestCase {
             listPackageReleases: ListPackageReleasesTests.Configuration(
                 packages: [
                     .init(
-                        package: PackageIdentity(scope: scope, name: name),
-                        numberOfReleases: versions.count,
-                        versions: Set(versions),
+                        package: PackageIdentity(scope: nioScope, name: nioName),
+                        numberOfReleases: nioVersions.count,
+                        versions: Set(nioVersions),
                         unavailableVersions: ["2.29.0"],
                         linkRelations: ["latest-version", "canonical"]
                     ),
@@ -92,16 +97,29 @@ final class AllCommandTests: XCTestCase {
             fetchPackageReleaseInfo: FetchPackageReleaseInfoTests.Configuration(
                 packageReleases: [
                     .init(
-                        packageRelease: PackageRelease(package: PackageIdentity(scope: scope, name: name), version: "2.30.0"),
+                        packageRelease: PackageRelease(package: PackageIdentity(scope: nioScope, name: nioName), version: "2.30.0"),
                         resources: [.sourceArchive(checksum: "e9a5540d37bf4fa0b5d5a071b366eeca899b37ece4ce93b26cc14286d57fbcef")],
                         keyValues: [
-                            "repositoryURL": "https://github.com/\(scope)/swift-nio",
+                            "repositoryURL": "https://github.com/\(nioScope)/swift-nio",
                             "commitHash": "d79e333",
                         ],
                         linkRelations: ["latest-version", "predecessor-version"]
                     ),
                 ],
                 unknownPackageReleases: [PackageRelease(package: PackageIdentity(scope: unknownScope, name: "unknown"), version: "1.0.0")]
+            ),
+            fetchPackageReleaseManifest: FetchPackageReleaseManifestTests.Configuration(
+                packageReleases: [
+                    .init(
+                        packageRelease: PackageRelease(package: PackageIdentity(scope: udScope, name: udName), version: "5.3.0"),
+                        swiftVersions: ["4.2"],
+                        noSwiftVersions: ["5.0"]
+                    ),
+                ],
+                unknownPackageReleases: [PackageRelease(package: PackageIdentity(scope: unknownScope, name: "unknown"), version: "1.0.0")],
+                contentLengthHeaderIsSet: true,
+                contentDispositionHeaderIsSet: true,
+                linkHeaderHasAlternateRelations: true
             )
         )
         let configData = try JSONEncoder().encode(config)
@@ -114,6 +132,7 @@ final class AllCommandTests: XCTestCase {
             XCTAssert(stdout.contains("Create Package Release - All tests passed."))
             XCTAssert(stdout.contains("List Package Releases - All tests passed."))
             XCTAssert(stdout.contains("Fetch Package Release Information - All tests passed."))
+            XCTAssert(stdout.contains("Fetch Package Release Manifest - All tests passed."))
         }
     }
 
@@ -123,5 +142,6 @@ final class AllCommandTests: XCTestCase {
         XCTAssert(stdout.contains("Create Package Release - All tests passed."))
         XCTAssert(stdout.contains("List Package Releases - All tests passed."))
         XCTAssert(stdout.contains("Fetch Package Release Information - All tests passed."))
+        XCTAssert(stdout.contains("Fetch Package Release Manifest - All tests passed."))
     }
 }
