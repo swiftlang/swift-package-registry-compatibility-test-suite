@@ -43,5 +43,10 @@
         "contentLengthHeaderIsSet": true,
         "contentDispositionHeaderIsSet": true,
         "linkHeaderHasAlternateRelations": true
+    },
+    "downloadSourceArchive": {
+        "contentDispositionHeaderIsSet": true,
+        "digestHeaderIsSet": true,
+        "linkHeaderHasDuplicateRelations": false
     }
 }

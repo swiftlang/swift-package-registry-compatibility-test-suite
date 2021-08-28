@@ -102,6 +102,9 @@ struct TestConfigurationGenerator {
             },
             fetchPackageReleaseManifest: configuration.fetchPackageReleaseManifest.map {
                 self.buildFetchPackageReleaseManifest(packages: packages, unknownPackages: unknownPackages, configuration: $0)
+            },
+            downloadSourceArchive: configuration.downloadSourceArchive.map {
+                self.buildDownloadSourceArchive(packages: packages, unknownPackages: unknownPackages, configuration: $0)
             }
         )
     }
@@ -216,6 +219,26 @@ struct TestConfigurationGenerator {
         )
     }
 
+    private func buildDownloadSourceArchive(packages: [PackageDescriptor],
+                                            unknownPackages: [PackageIdentity],
+                                            configuration: Configuration.DownloadSourceArchive) -> DownloadSourceArchiveTests.Configuration {
+        DownloadSourceArchiveTests.Configuration(
+            sourceArchives: packages.flatMap { package in
+                package.releases.map {
+                    .init(
+                        packageRelease: .init(package: package.id, version: $0.version.description),
+                        hasDuplicateLinks: configuration.linkHeaderHasDuplicateRelations
+                    )
+                }
+            },
+            unknownSourceArchives: Set(unknownPackages.map {
+                .init(package: $0, version: "1.0.0")
+            }),
+            contentDispositionHeaderIsSet: configuration.contentDispositionHeaderIsSet,
+            digestHeaderIsSet: configuration.digestHeaderIsSet
+        )
+    }
+
     private func randomPackageIdentities(count: Int) -> [PackageIdentity] {
         guard count > 0 else { return [] }
 
@@ -293,6 +316,9 @@ extension TestConfigurationGenerator {
         /// For creating `FetchPackageReleaseManifestTests.Configuration`
         let fetchPackageReleaseManifest: FetchPackageReleaseManifest?
 
+        /// For creating `DownloadSourceArchiveTests.Configuration`
+        let downloadSourceArchive: DownloadSourceArchive?
+
         struct PackageInfo: Codable {
             /// Identity to use for the test package. A random identity is generated if this is unspecified.
             let id: PackageIdentity?
@@ -353,6 +379,17 @@ extension TestConfigurationGenerator {
 
             /// See `FetchPackageReleaseManifestTests.Configuration.linkHeaderHasAlternateRelations`
             let linkHeaderHasAlternateRelations: Bool
+        }
+
+        struct DownloadSourceArchive: Codable {
+            /// See `DownloadSourceArchiveTests.Configuration.contentDispositionHeaderIsSet`
+            let contentDispositionHeaderIsSet: Bool
+
+            /// See `DownloadSourceArchiveTests.Configuration.digestHeaderIsSet`
+            let digestHeaderIsSet: Bool
+
+            /// See `DownloadSourceArchiveTests.Configuration.SourceArchiveExpectation.hasDuplicateLinks`
+            let linkHeaderHasDuplicateRelations: Bool
         }
     }
 }

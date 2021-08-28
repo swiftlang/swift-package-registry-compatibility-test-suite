@@ -120,6 +120,17 @@ final class AllCommandTests: XCTestCase {
                 contentLengthHeaderIsSet: true,
                 contentDispositionHeaderIsSet: true,
                 linkHeaderHasAlternateRelations: true
+            ),
+            downloadSourceArchive: DownloadSourceArchiveTests.Configuration(
+                sourceArchives: [
+                    .init(
+                        packageRelease: PackageRelease(package: PackageIdentity(scope: nioScope, name: nioName), version: "2.30.0"),
+                        hasDuplicateLinks: false
+                    ),
+                ],
+                unknownSourceArchives: [PackageRelease(package: PackageIdentity(scope: unknownScope, name: "unknown"), version: "1.0.0")],
+                contentDispositionHeaderIsSet: true,
+                digestHeaderIsSet: true
             )
         )
         let configData = try JSONEncoder().encode(config)
@@ -133,6 +144,7 @@ final class AllCommandTests: XCTestCase {
             XCTAssert(stdout.contains("List Package Releases - All tests passed."))
             XCTAssert(stdout.contains("Fetch Package Release Information - All tests passed."))
             XCTAssert(stdout.contains("Fetch Package Release Manifest - All tests passed."))
+            XCTAssert(stdout.contains("Download Source Archive - All tests passed."))
         }
     }
 
@@ -143,5 +155,6 @@ final class AllCommandTests: XCTestCase {
         XCTAssert(stdout.contains("List Package Releases - All tests passed."))
         XCTAssert(stdout.contains("Fetch Package Release Information - All tests passed."))
         XCTAssert(stdout.contains("Fetch Package Release Manifest - All tests passed."))
+        XCTAssert(stdout.contains("Download Source Archive - All tests passed."))
     }
 }
