@@ -115,8 +115,7 @@ struct PackageRegistryCompatibilityTestSuite: ParsableCommand {
         private func run(configuration: Configuration) throws {
             var createPackageReleaseConfig = configuration.createPackageRelease
             if self.generateData, createPackageReleaseConfig == nil {
-                print("\"createPackageRelease\" configuration is required when --generate-data is set")
-                return
+                throw TestError("\"createPackageRelease\" configuration is required when --generate-data is set")
             }
 
             // Convert file paths in the configuration to absolute paths if needed
