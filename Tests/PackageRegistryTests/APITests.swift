@@ -277,7 +277,7 @@ final class BasicAPITests: XCTestCase {
 
             XCTAssertEqual(Set(versions), Set(releasesResponse.releases.keys))
             XCTAssertEqual(1, releasesResponse.releases.values.filter { $0.problem != nil }.count)
-            XCTAssertEqual(HTTPResponseStatus.gone.code, releasesResponse.releases["2.29.0"]!.problem!.status)
+            XCTAssertEqual(HTTPResponseStatus.gone.code, releasesResponse.releases["2.29.0"]?.problem?.status)
 
             let links = response.parseLinkHeader()
             XCTAssertNotNil(links.first { $0.relation == "latest-version" })
@@ -756,31 +756,23 @@ final class BasicAPITests: XCTestCase {
 
     private func createPackageReleases(scope: String, name: String, versions: [String]) {
         runAsyncAndWaitFor({
-            try await withThrowingTaskGroup(of: (String, HTTPClient.Response).self) { group in
-                for version in versions {
-                    group.addTask {
-                        guard let archiveMetadata = self.sourceArchives.first(where: { $0.name == name && $0.version == version }) else {
-                            throw StringError(message: "Source archive for version \(version) not found")
-                        }
-
-                        let archiveURL = self.fixtureURL(filename: archiveMetadata.filename)
-                        let archive = try Data(contentsOf: archiveURL)
-                        let repositoryURL = archiveMetadata.repositoryURL.replacingOccurrences(of: archiveMetadata.scope, with: scope)
-                        let metadata = PackageReleaseMetadata(repositoryURL: repositoryURL, commitHash: archiveMetadata.commitHash)
-
-                        let response = try await self.client.createPackageRelease(scope: scope,
-                                                                                  name: name,
-                                                                                  version: version,
-                                                                                  sourceArchive: archive,
-                                                                                  metadata: metadata,
-                                                                                  deadline: NIODeadline.now() + .seconds(20))
-                        return (version, response)
-                    }
+            for version in versions {
+                guard let archiveMetadata = self.sourceArchives.first(where: { $0.name == name && $0.version == version }) else {
+                    throw StringError(message: "Source archive for version \(version) not found")
                 }
 
-                while let (version, response) = try await group.next() {
-                    XCTAssertEqual(.created, response.status, "Create package release \(version) failed with status \(response.status)")
-                }
+                let archiveURL = self.fixtureURL(filename: archiveMetadata.filename)
+                let archive = try Data(contentsOf: archiveURL)
+                let repositoryURL = archiveMetadata.repositoryURL.replacingOccurrences(of: archiveMetadata.scope, with: scope)
+                let metadata = PackageReleaseMetadata(repositoryURL: repositoryURL, commitHash: archiveMetadata.commitHash)
+
+                let response = try await self.client.createPackageRelease(scope: scope,
+                                                                          name: name,
+                                                                          version: version,
+                                                                          sourceArchive: archive,
+                                                                          metadata: metadata,
+                                                                          deadline: NIODeadline.now() + .seconds(20))
+                XCTAssertEqual(.created, response.status)
             }
         }, TimeInterval(versions.count * 20))
     }

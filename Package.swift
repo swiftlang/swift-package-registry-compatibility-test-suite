@@ -17,12 +17,13 @@ import PackageDescription
 let package = Package(
     name: "swift-package-registry-compatibility-test-suite",
     platforms: [.macOS("12.0")],
-    products: [],
+    products: [
+        .executable(name: "package-registry-compatibility", targets: ["PackageRegistryCompatibilityTestSuite"]),
+    ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.32.1")),
         .package(url: "https://github.com/vapor/vapor.git", .upToNextMajor(from: "4.48.3")),
-        // TODO: pin to release with async/await support
-        .package(url: "https://github.com/swift-server/swift-service-lifecycle.git", .branch("main")),
+        .package(url: "https://github.com/swift-server/swift-service-lifecycle.git", .branch("main")), // TODO: pin to release with async/await support
         .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.0.0")),
         .package(url: "https://github.com/apple/swift-metrics.git", .upToNextMajor(from: "2.0.0")),
         .package(url: "https://github.com/apple/swift-statsd-client.git", .upToNextMajor(from: "1.0.0-alpha")),
@@ -78,6 +79,17 @@ let package = Package(
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ]),
 
+        .executableTarget(name: "PackageRegistryCompatibilityTestSuite",
+                          dependencies: [
+                              "PackageRegistryClient",
+                              .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                              .product(name: "AsyncHTTPClient", package: "async-http-client"),
+                              .product(name: "_NIOConcurrency", package: "swift-nio"), // async/await bridge
+                              .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
+                              .product(name: "Atomics", package: "swift-atomics"),
+                          ],
+                          exclude: ["README.md"]),
+
         .testTarget(name: "PostgresMigrationsTests", dependencies: [
             "PostgresMigrations",
         ]),
@@ -86,6 +98,10 @@ let package = Package(
             "PackageRegistryModels",
             "PackageRegistryClient",
             .product(name: "Crypto", package: "swift-crypto"),
+        ]),
+
+        .testTarget(name: "PackageRegistryCompatibilityTestSuiteTests", dependencies: [
+            "PackageRegistryCompatibilityTestSuite",
         ]),
     ]
 )
