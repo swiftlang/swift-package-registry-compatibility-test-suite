@@ -39,9 +39,8 @@ final class CreatePackageReleaseTests: APITest {
         for packageRelease in self.configuration.packageReleases {
             let scope = packageRelease.package?.scope ?? randomScope
             let name = packageRelease.package?.name ?? randomName
-            var testCase = TestCase(name: "Create package release \(scope).\(name)@\(packageRelease.version)")
 
-            do {
+            self.log.append(await TestCase(name: "Create package release \(scope).\(name)@\(packageRelease.version)") { testCase in
                 let response = try await self.createPackageRelease(packageRelease, scope: scope, name: name, for: &testCase)
 
                 testCase.mark("HTTP response status")
@@ -77,19 +76,14 @@ final class CreatePackageReleaseTests: APITest {
                 default:
                     throw TestError("Expected HTTP status code 201 or 202 but got \(response.status.code)")
                 }
-            } catch {
-                testCase.error(error)
-            }
-
-            self.log.append(testCase)
+            })
         }
 
         for packageRelease in self.configuration.packageReleases {
             let scope = packageRelease.package?.scope ?? randomScope
             let name = packageRelease.package?.name ?? randomName
-            var testCase = TestCase(name: "Publish duplicate package release \(scope).\(name)@\(packageRelease.version)")
 
-            do {
+            self.log.append(await TestCase(name: "Publish duplicate package release \(scope).\(name)@\(packageRelease.version)") { testCase in
                 let response = try await self.createPackageRelease(packageRelease, scope: scope, name: name, for: &testCase)
 
                 // 4.6 Server should return 409 if package release already exists
@@ -103,11 +97,7 @@ final class CreatePackageReleaseTests: APITest {
                 if response.body == nil {
                     testCase.warning("Response should include problem details")
                 }
-            } catch {
-                testCase.error(error)
-            }
-
-            self.log.append(testCase)
+            })
         }
 
         self.printLog()

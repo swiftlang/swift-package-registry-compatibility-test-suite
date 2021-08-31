@@ -87,9 +87,15 @@ struct TestCase: Sendable, CustomStringConvertible {
         self.testPoints.count
     }
 
-    init(name: String) {
+    init(name: String, body: (inout TestCase) async throws -> Void) async {
         self.name = name
         self.testPoints = []
+
+        do {
+            try await body(&self)
+        } catch {
+            self.error(error)
+        }
     }
 
     mutating func mark(_ testPoint: String) {
