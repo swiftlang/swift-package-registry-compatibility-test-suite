@@ -87,6 +87,7 @@ let package = Package(
                               .product(name: "AsyncHTTPClient", package: "async-http-client"),
                               .product(name: "_NIOConcurrency", package: "swift-nio"), // async/await bridge
                               .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
+                              .product(name: "Atomics", package: "swift-atomics"),
                           ],
                           exclude: ["README.md"]),
 

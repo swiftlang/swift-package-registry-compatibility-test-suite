@@ -80,7 +80,7 @@ extension XCTest {
 
         let configPath = self.fixturePath(filename: generateData ? "gendata.json" : "local-registry.json")
 
-        return try self.executeCommand(command: "package-registry-compatibility all \(registryURL) \(configPath) --allow-http \(generateData ? "--generate-data" : "")")
+        return try self.executeCommand(command: "package-registry-compatibility \(subcommand) \(registryURL) \(configPath) --allow-http \(generateData ? "--generate-data" : "")")
     }
 
     func fixturePath(filename: String) -> String {

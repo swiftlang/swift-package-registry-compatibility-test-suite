@@ -14,6 +14,7 @@ import Foundation
 
 import ArgumentParser
 import AsyncHTTPClient
+import Atomics
 import TSCBasic
 
 private let defaultAPIVersion = "1"
@@ -158,13 +159,17 @@ extension PackageRegistryCompatibilityTestSuite {
     }
 }
 
-private struct TestPlan {
-    var steps = [Step]()
-
+// Not thread-safe
+// FIXME: need @unchecked for `HTTPClient` and `ManagedAtomic`
+private struct TestPlan: @unchecked Sendable {
     let registryURL: String
     let authToken: AuthenticationToken?
     let apiVersion: String
     let httpClient: HTTPClient
+
+    private var steps = [Step]()
+
+    private let isExecuting = ManagedAtomic<Bool>(false)
 
     init(registryURL: String, authToken: String?, apiVersion: String?, httpClient: HTTPClient) {
         self.registryURL = registryURL
@@ -174,6 +179,9 @@ private struct TestPlan {
     }
 
     mutating func addStep(_ step: Step) {
+        guard !self.isExecuting.load(ordering: .acquiring) else {
+            preconditionFailure("Cannot invoke 'addStep' after 'execute'")
+        }
         self.steps.append(step)
     }
 
@@ -182,6 +190,10 @@ private struct TestPlan {
     }
 
     func execute() throws {
+        if !self.isExecuting.compareExchange(expected: false, desired: true, ordering: .acquiring).exchanged {
+            throw TestError("Test plan is being executed")
+        }
+
         let promise = self.httpClient.eventLoopGroup.next().makePromise(of: Void.self)
         Task.detached {
             var summaries = [String]()
@@ -225,7 +237,7 @@ private struct TestPlan {
         return try promise.futureResult.wait()
     }
 
-    struct Step {
+    struct Step: Sendable {
         let test: TestType
         /// If `true`, test runner will stop if this step has any errors
         let required: Bool
@@ -236,7 +248,7 @@ private struct TestPlan {
         }
     }
 
-    enum TestType {
+    enum TestType: Sendable {
         case createPackageRelease(CreatePackageReleaseTests.Configuration)
 
         var label: String {

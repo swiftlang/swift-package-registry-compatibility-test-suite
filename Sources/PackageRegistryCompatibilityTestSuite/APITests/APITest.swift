@@ -14,7 +14,7 @@ import _NIOConcurrency
 import AsyncHTTPClient
 import NIOHTTP1
 
-class APITest {
+class APITest: @unchecked Sendable {
     let registryURL: String
     let authToken: AuthenticationToken?
     let apiVersion: String

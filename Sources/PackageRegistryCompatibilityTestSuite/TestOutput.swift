@@ -10,15 +10,24 @@
 //
 //===----------------------------------------------------------------------===//
 
-struct TestLog: CustomStringConvertible {
-    var testCases: [TestCase]
+import TSCBasic
+
+// FIXME: need @unchecked for `Lock`
+struct TestLog: @unchecked Sendable, CustomStringConvertible {
+    private var testCases: [TestCase]
+
+    private let lock = Lock()
 
     var failures: [TestCase] {
-        self.testCases.filter { !$0.errors.isEmpty }
+        self.lock.withLock {
+            self.testCases.filter { !$0.errors.isEmpty }
+        }
     }
 
     var warnings: [TestCase] {
-        self.testCases.filter { !$0.warnings.isEmpty }
+        self.lock.withLock {
+            self.testCases.filter { !$0.warnings.isEmpty }
+        }
     }
 
     var summary: String {
@@ -35,15 +44,26 @@ struct TestLog: CustomStringConvertible {
         self.testCases = []
     }
 
+    mutating func append(_ testCase: TestCase) {
+        var testCase = testCase
+        testCase.end()
+        self.lock.withLock {
+            self.testCases.append(testCase)
+        }
+    }
+
     var description: String {
-        self.testCases.map { "\($0)\n" }.joined(separator: "\n")
+        self.lock.withLock {
+            self.testCases.map { "\($0)\n" }.joined(separator: "\n")
+        }
     }
 }
 
-struct TestCase: CustomStringConvertible {
+// Not thread-safe
+struct TestCase: Sendable, CustomStringConvertible {
     let name: String
-    var testPoints: [TestPoint]
-    var currentTestPoint: String?
+    private var testPoints: [TestPoint]
+    private var currentTestPoint: String?
 
     var errors: [TestPoint] {
         self.testPoints.filter {
@@ -102,7 +122,7 @@ struct TestCase: CustomStringConvertible {
         self.currentTestPoint = nil
     }
 
-    mutating func endCurrentIfAny() {
+    private mutating func endCurrentIfAny() {
         if let currentTestPoint = self.currentTestPoint {
             // Errors and warnings require calling `error` and `warning` methods explicitly, which also
             // reset `currentTestPoint`, so here we can assume the test point was ok.
@@ -118,16 +138,17 @@ struct TestCase: CustomStringConvertible {
     var description: String {
         let errors = self.errors
         let warnings = self.warnings
+        let testPoints = self.testPoints
 
         return """
         Test case: \(self.name)
-        \(self.testPoints.map { "  \($0)" }.joined(separator: "\n"))
-        \(errors.isEmpty ? "Passed" : "Failed \(errors.count)/\(self.testPoints.count) tests")\(warnings.isEmpty ? "" : " with \(warnings.count) warnings")
+        \(testPoints.map { "  \($0)" }.joined(separator: "\n"))
+        \(errors.isEmpty ? "Passed" : "Failed \(errors.count)/\(testPoints.count) tests")\(warnings.isEmpty ? "" : " with \(warnings.count) warnings")
         """
     }
 }
 
-struct TestPoint: CustomStringConvertible {
+struct TestPoint: Sendable, CustomStringConvertible {
     let purpose: String
     let result: TestPointResult
 
@@ -143,7 +164,7 @@ struct TestPoint: CustomStringConvertible {
     }
 }
 
-enum TestPointResult: Equatable {
+enum TestPointResult: Sendable, Equatable {
     case ok
     case warning(String)
     case error(String)

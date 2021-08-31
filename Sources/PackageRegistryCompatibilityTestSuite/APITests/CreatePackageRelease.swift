@@ -81,7 +81,7 @@ final class CreatePackageReleaseTests: APITest {
                 testCase.error(error)
             }
 
-            self.log.testCases.append(testCase)
+            self.log.append(testCase)
         }
 
         for packageRelease in self.configuration.packageReleases {
@@ -107,7 +107,7 @@ final class CreatePackageReleaseTests: APITest {
                 testCase.error(error)
             }
 
-            self.log.testCases.append(testCase)
+            self.log.append(testCase)
         }
 
         self.printLog()
