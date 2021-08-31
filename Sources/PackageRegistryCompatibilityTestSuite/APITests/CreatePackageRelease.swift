@@ -70,8 +70,10 @@ final class CreatePackageReleaseTests: APITest {
 
                     // Poll status until it finishes
                     testCase.mark("Poll \(locationHeader) until publication finishes")
-                    try await self.poll(url: locationHeader, after: self.getRetryTimestamp(headers: response.headers),
-                                        deadline: DispatchTime.now() + .seconds(self.configuration.maxProcessingTimeInSeconds))
+                    try await Task.detached {
+                        try await self.poll(url: locationHeader, after: self.getRetryTimestamp(headers: response.headers),
+                                            deadline: DispatchTime.now() + .seconds(self.configuration.maxProcessingTimeInSeconds))
+                    }.value
                 default:
                     throw TestError("Expected HTTP status code 201 or 202 but got \(response.status.code)")
                 }
