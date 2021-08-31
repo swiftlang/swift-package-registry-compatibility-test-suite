@@ -14,8 +14,9 @@ import XCTest
 
 final class AllCommandTests: XCTestCase {
     func test_help() throws {
-        XCTAssert(try executeCommand(command: "package-registry-compatibility all --help")
-            .stdout.contains("USAGE: package-registry-compatibility all <url> <config-path>"))
+        let result = try executeCommand(command: "package-registry-compatibility all --help")
+        print(result.stderr)
+        XCTAssert(result.stdout.contains("USAGE: package-registry-compatibility all <url> <config-path>"))
     }
 
     func test_run() throws {

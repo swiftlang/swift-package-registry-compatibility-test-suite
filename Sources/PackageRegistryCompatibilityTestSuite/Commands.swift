@@ -19,8 +19,9 @@ import TSCBasic
 
 private let defaultAPIVersion = "1"
 
-@main
-struct PackageRegistryCompatibilityTestSuite: ParsableCommand {
+// FIXME: put @main here when ArgumentParser supports async/await
+// Currently @main is in PackageRegistryCompatibilityTestSuiteAsyncMain
+struct PackageRegistryCompatibilityTestSuite: AsyncParsableCommand {
     static var configuration = CommandConfiguration(
         commandName: "package-registry-compatibility",
         abstract: "Compatibility test suite for Swift Package Registry (SE-0292, SE-0321)",
@@ -33,7 +34,7 @@ struct PackageRegistryCompatibilityTestSuite: ParsableCommand {
     )
 
     /// Command for testing the "create package release" API
-    struct CreatePackageRelease: ParsableCommand {
+    struct CreatePackageRelease: AsyncParsableCommand {
         @Argument(help: "Package registry URL")
         var url: String
 
@@ -56,14 +57,14 @@ struct PackageRegistryCompatibilityTestSuite: ParsableCommand {
         @Flag(name: .long, help: "Generate test data according to the configuration file")
         var generateData: Bool = false
 
-        func run() throws {
+        func run() async throws {
             try self.checkRegistryURL(self.url, allowHTTP: self.allowHTTP)
             print("")
 
-            try self.readConfigAndRunTests(configPath: self.configPath, generateData: self.generateData, test: self.run)
+            try await self.readConfigAndRunTests(configPath: self.configPath, generateData: self.generateData, test: self.run)
         }
 
-        private func run(configuration: Configuration) throws {
+        private func run(configuration: Configuration) async throws {
             guard var createPackageReleaseConfig = configuration.createPackageRelease else {
                 throw TestError("Test configuration not found")
             }
@@ -77,12 +78,12 @@ struct PackageRegistryCompatibilityTestSuite: ParsableCommand {
 
             var testPlan = TestPlan(registryURL: self.url, authToken: self.authToken, apiVersion: self.apiVersion, httpClient: httpClient)
             testPlan.addStep(.createPackageRelease(createPackageReleaseConfig))
-            try testPlan.execute()
+            try await testPlan.execute()
         }
     }
 
     /// Command for testing all registry APIs
-    struct All: ParsableCommand {
+    struct All: AsyncParsableCommand {
         @Argument(help: "Package registry URL")
         var url: String
 
@@ -105,14 +106,14 @@ struct PackageRegistryCompatibilityTestSuite: ParsableCommand {
         @Flag(name: .long, help: "Generate test data according to the configuration file")
         var generateData: Bool = false
 
-        func run() throws {
+        func run() async throws {
             try self.checkRegistryURL(self.url, allowHTTP: self.allowHTTP)
             print("")
 
-            try self.readConfigAndRunTests(configPath: self.configPath, generateData: self.generateData, test: self.run)
+            try await self.readConfigAndRunTests(configPath: self.configPath, generateData: self.generateData, test: self.run)
         }
 
-        private func run(configuration: Configuration) throws {
+        private func run(configuration: Configuration) async throws {
             var createPackageReleaseConfig = configuration.createPackageRelease
             if self.generateData, createPackageReleaseConfig == nil {
                 throw TestError("\"createPackageRelease\" configuration is required when --generate-data is set")
@@ -129,7 +130,7 @@ struct PackageRegistryCompatibilityTestSuite: ParsableCommand {
             if let createPackageReleaseConfig = createPackageReleaseConfig {
                 testPlan.addStep(.createPackageRelease(createPackageReleaseConfig), required: self.generateData)
             }
-            try testPlan.execute()
+            try await testPlan.execute()
         }
     }
 }
@@ -188,52 +189,45 @@ private struct TestPlan: @unchecked Sendable {
         self.addStep(.init(test: test, required: required))
     }
 
-    func execute() throws {
+    func execute() async throws {
         if !self.isExecuting.compareExchange(expected: false, desired: true, ordering: .acquiring).exchanged {
             throw TestError("Test plan is being executed")
         }
 
-        let promise = self.httpClient.eventLoopGroup.next().makePromise(of: Void.self)
-        Task.detached {
-            var summaries = [String]()
-
-            for step in self.steps {
-                print("")
-                print("------------------------------------------------------------")
-                print(step.test.label)
-                print("------------------------------------------------------------")
-                print(" - Package registry URL: \(self.registryURL)")
-                print(" - API version: \(self.apiVersion)")
-                print("")
-
-                let testLog: TestLog
-                switch step.test {
-                case .createPackageRelease(let configuration):
-                    testLog = await PackageRegistryCompatibilityTestSuite.runCreatePackageRelease(registryURL: self.registryURL,
-                                                                                                  authToken: self.authToken,
-                                                                                                  apiVersion: self.apiVersion,
-                                                                                                  configuration: configuration,
-                                                                                                  httpClient: self.httpClient)
-                }
-
-                summaries.append(testLog.summary)
-
-                if step.required, !testLog.failures.isEmpty {
-                    print("Stopping tests because the required step \"\(step.test.label)\" has failed: \(testLog.summary)")
-                    break
-                }
-            }
-
+        var summaries = [String]()
+        for step in self.steps {
             print("")
-            print("Test summary:")
-            self.steps.enumerated().forEach { index, step in
-                let summary = index < summaries.count ? summaries[index] : "did not run"
-                print("\(step.test.label) - \(summary)")
+            print("------------------------------------------------------------")
+            print(step.test.label)
+            print("------------------------------------------------------------")
+            print(" - Package registry URL: \(self.registryURL)")
+            print(" - API version: \(self.apiVersion)")
+            print("")
+
+            let testLog: TestLog
+            switch step.test {
+            case .createPackageRelease(let configuration):
+                testLog = await PackageRegistryCompatibilityTestSuite.runCreatePackageRelease(registryURL: self.registryURL,
+                                                                                              authToken: self.authToken,
+                                                                                              apiVersion: self.apiVersion,
+                                                                                              configuration: configuration,
+                                                                                              httpClient: self.httpClient)
             }
 
-            promise.succeed(())
+            summaries.append(testLog.summary)
+
+            if step.required, !testLog.failures.isEmpty {
+                print("Stopping tests because the required step \"\(step.test.label)\" has failed: \(testLog.summary)")
+                break
+            }
         }
-        return try promise.futureResult.wait()
+
+        print("")
+        print("Test summary:")
+        self.steps.enumerated().forEach { index, step in
+            let summary = index < summaries.count ? summaries[index] : "did not run"
+            print("\(step.test.label) - \(summary)")
+        }
     }
 
     struct Step: Sendable {
@@ -279,7 +273,8 @@ private extension ParsableCommand {
         return HTTPClient(eventLoopGroupProvider: .createNew, configuration: configuration)
     }
 
-    func readConfigAndRunTests(configPath: String, generateData: Bool, test: (PackageRegistryCompatibilityTestSuite.Configuration) throws -> Void) throws {
+    func readConfigAndRunTests(configPath: String, generateData: Bool,
+                               test: (PackageRegistryCompatibilityTestSuite.Configuration) async throws -> Void) async throws {
         print("Reading configuration file at \(configPath)")
         let configData: Data
         do {
@@ -304,9 +299,9 @@ private extension ParsableCommand {
 
             let generator = TestConfigurationGenerator(fileSystem: localFileSystem)
             do {
-                try withTemporaryDirectory(removeTreeOnDeinit: true) { tmpDir in
+                try await withTemporaryDirectory(removeTreeOnDeinit: true) { tmpDir in
                     let configuration = try generator.run(configuration: generatorConfig, tmpDir: tmpDir)
-                    try test(configuration)
+                    try await test(configuration)
                 }
             } catch {
                 if error is TestError {
@@ -316,7 +311,7 @@ private extension ParsableCommand {
             }
         } else {
             let configuration: PackageRegistryCompatibilityTestSuite.Configuration = try self.decodeConfiguration(configData)
-            try test(configuration)
+            try await test(configuration)
         }
     }
 

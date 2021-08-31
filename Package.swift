@@ -23,8 +23,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.32.1")),
         .package(url: "https://github.com/vapor/vapor.git", .upToNextMajor(from: "4.48.3")),
-        // TODO: pin to release with async/await support
-        .package(url: "https://github.com/swift-server/swift-service-lifecycle.git", .branch("main")),
+        .package(url: "https://github.com/swift-server/swift-service-lifecycle.git", .branch("main")), // TODO: pin to release with async/await support
         .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.0.0")),
         .package(url: "https://github.com/apple/swift-metrics.git", .upToNextMajor(from: "2.0.0")),
         .package(url: "https://github.com/apple/swift-statsd-client.git", .upToNextMajor(from: "1.0.0-alpha")),
