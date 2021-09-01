@@ -31,38 +31,13 @@ final class ListPackageReleasesTests: APITest {
     }
 
     private func run(appendDotJSON: Bool) async {
-        func _run(scope: String, name: String, expectation: Configuration.PackageExpectation) async -> TestCase {
-            await TestCase(name: "List releases for package \(scope).\(name) (with\(appendDotJSON ? "" : "out") .json in the URI)") { testCase in
-                let url = "\(self.registryURL)/\(scope)/\(name)\(appendDotJSON ? ".json" : "")"
-
-                testCase.mark("HTTP request: GET \(url)")
-                let response = try await self.get(url: url, mediaType: .json)
-
-                // 4.1 Server should return 200 if package is found
-                testCase.mark("HTTP response status")
-                guard response.status == .ok else {
-                    throw TestError("Expected HTTP status code 200 but got \(response.status.code)")
-                }
-
-                // 3.5 Server must set "Content-Type" and "Content-Version" headers
-                self.checkContentTypeHeader(response.headers, expected: .json, for: &testCase)
-                self.checkContentVersionHeader(response.headers, for: &testCase)
-
-                if self.configuration.paginationSupported {
-                    try await self.checkPaginated(response: response, expectation: expectation, for: &testCase)
-                } else {
-                    try self.checkNonPaginated(response: response, expectation: expectation, for: &testCase)
-                }
-            }
-        }
-
         for expectation in self.configuration.packages {
             let scope = expectation.package.scope
             let name = expectation.package.name
 
-            self.log.append(await _run(scope: scope, name: name, expectation: expectation))
+            self.log.append(await self.run(scope: scope, name: name, appendDotJSON: appendDotJSON, expectation: expectation))
             // Case-insensitivity
-            self.log.append(await _run(scope: scope.flipcased, name: name.flipcased, expectation: expectation))
+            self.log.append(await self.run(scope: scope.flipcased, name: name.flipcased, appendDotJSON: appendDotJSON, expectation: expectation))
         }
 
         for package in self.configuration.unknownPackages {
@@ -84,6 +59,31 @@ final class ListPackageReleasesTests: APITest {
                     testCase.warning("Response should include problem details")
                 }
             })
+        }
+    }
+
+    func run(scope: String, name: String, appendDotJSON: Bool, expectation: Configuration.PackageExpectation) async -> TestCase {
+        await TestCase(name: "List releases for package \(scope).\(name) (with\(appendDotJSON ? "" : "out") .json in the URI)") { testCase in
+            let url = "\(self.registryURL)/\(scope)/\(name)\(appendDotJSON ? ".json" : "")"
+
+            testCase.mark("HTTP request: GET \(url)")
+            let response = try await self.get(url: url, mediaType: .json)
+
+            // 4.1 Server should return 200 if package is found
+            testCase.mark("HTTP response status")
+            guard response.status == .ok else {
+                throw TestError("Expected HTTP status code 200 but got \(response.status.code)")
+            }
+
+            // 3.5 Server must set "Content-Type" and "Content-Version" headers
+            self.checkContentTypeHeader(response.headers, expected: .json, for: &testCase)
+            self.checkContentVersionHeader(response.headers, for: &testCase)
+
+            if self.configuration.paginationSupported {
+                try await self.checkPaginated(response: response, expectation: expectation, for: &testCase)
+            } else {
+                try self.checkNonPaginated(response: response, expectation: expectation, for: &testCase)
+            }
         }
     }
 

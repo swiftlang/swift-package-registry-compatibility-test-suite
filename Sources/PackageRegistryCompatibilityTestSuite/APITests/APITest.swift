@@ -132,7 +132,7 @@ extension HTTPClient.Response {
                 guard let rel = parts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter({ $0.hasPrefix("rel=") }).first else {
                     return nil
                 }
-                let relation = String(rel.dropFirst("rel=".count).dropFirst(1).dropLast(1)) // Remove " from beginninng and end
+                let relation = String(rel.dropFirst("rel=".count).dropFirst(1).dropLast(1)) // Remove " from beginning and end
 
                 return Link(relation: relation, url: String(url))
             }

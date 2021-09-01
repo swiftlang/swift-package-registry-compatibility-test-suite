@@ -35,5 +35,8 @@
         "packageURLProvided": true,
         "problemProvided": true,
         "paginationSupported": false
-    }
+    },
+    "fetchPackageReleaseInfo": {
+        "linkHeaderIsSet": true
+    },
 }

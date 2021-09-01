@@ -17,7 +17,7 @@ import PackageRegistryClient
 @testable import PackageRegistryCompatibilityTestSuite
 import TSCBasic
 
-final class AllCommandTests: XCTestCase {
+final class FetchPackageReleaseInfoCommandTests: XCTestCase {
     private var sourceArchives: [SourceArchiveMetadata]!
     private var registryClient: PackageRegistryClient!
 
@@ -38,9 +38,8 @@ final class AllCommandTests: XCTestCase {
     }
 
     func test_help() throws {
-        let result = try executeCommand(command: "package-registry-compatibility all --help")
-        print(result.stderr)
-        XCTAssert(result.stdout.contains("USAGE: package-registry-compatibility all <url> <config-path>"))
+        XCTAssert(try executeCommand(command: "package-registry-compatibility fetch-package-release-info --help")
+            .stdout.contains("USAGE: package-registry-compatibility fetch-package-release-info <url> <config-path>"))
     }
 
     func test_run() throws {
@@ -50,47 +49,29 @@ final class AllCommandTests: XCTestCase {
         let versions = ["1.14.2", "2.29.0", "2.30.0"]
         self.createPackageReleases(scope: scope, name: name, versions: versions, client: self.registryClient, sourceArchives: self.sourceArchives)
 
-        // Make version 2.29.0 unavailable by deleting it
-        let deleteResponse = try self.registryClient.httpClient.delete(url: "\(self.registryURL)/\(scope)/\(name)/2.29.0").wait()
-        XCTAssertEqual(.noContent, deleteResponse.status)
-
         let unknownScope = "test-\(UUID().uuidString.prefix(6))"
 
         let config = PackageRegistryCompatibilityTestSuite.Configuration(
-            createPackageRelease: CreatePackageReleaseTests.Configuration(
-                packageReleases: [
-                    .init(
-                        package: nil,
-                        version: "1.0.0",
-                        sourceArchivePath: self.fixturePath(subdirectory: "SourceArchives", filename: "swift-nio@1.14.2.zip"),
-                        metadataPath: self.fixturePath(subdirectory: "CompatibilityTestSuite/Metadata", filename: "swift-nio@1.14.2.json")
-                    ),
-                    .init(
-                        package: nil,
-                        version: "2.0.0",
-                        sourceArchivePath: self.fixturePath(subdirectory: "SourceArchives", filename: "SwiftyUserDefaults@5.3.0.zip"),
-                        metadataPath: self.fixturePath(subdirectory: "CompatibilityTestSuite/Metadata", filename: "SwiftyUserDefaults@5.3.0.json")
-                    ),
-                ],
-                maxProcessingTimeInSeconds: 10
-            ),
-            listPackageReleases: ListPackageReleasesTests.Configuration(
-                packages: [
-                    .init(
-                        package: PackageIdentity(scope: scope, name: name),
-                        numberOfReleases: versions.count,
-                        versions: Set(versions),
-                        unavailableVersions: ["2.29.0"],
-                        linkRelations: ["latest-version", "canonical"]
-                    ),
-                ],
-                unknownPackages: [PackageIdentity(scope: unknownScope, name: "unknown")],
-                packageURLProvided: true,
-                problemProvided: true,
-                paginationSupported: false
-            ),
             fetchPackageReleaseInfo: FetchPackageReleaseInfoTests.Configuration(
                 packageReleases: [
+                    .init(
+                        packageRelease: PackageRelease(package: PackageIdentity(scope: scope, name: name), version: "1.14.2"),
+                        resources: [.sourceArchive(checksum: "43c63aad4ff999ca48aff499d879ebf68ce3afc7d69dcabe2ae2b1033646e983")],
+                        keyValues: [
+                            "repositoryURL": "https://github.com/\(scope)/swift-nio",
+                            "commitHash": "8da5c5a",
+                        ],
+                        linkRelations: ["latest-version", "successor-version"]
+                    ),
+                    .init(
+                        packageRelease: PackageRelease(package: PackageIdentity(scope: scope, name: name), version: "2.29.0"),
+                        resources: [.sourceArchive(checksum: "f44ce7dcc5d4fadf95e9a95c0e4345d0ae25a203ec63460883e1ca771e0b347b")],
+                        keyValues: [
+                            "repositoryURL": "https://github.com/\(scope)/swift-nio",
+                            "commitHash": "d161bf6",
+                        ],
+                        linkRelations: ["latest-version", "successor-version", "predecessor-version"]
+                    ),
                     .init(
                         packageRelease: PackageRelease(package: PackageIdentity(scope: scope, name: name), version: "2.30.0"),
                         resources: [.sourceArchive(checksum: "e9a5540d37bf4fa0b5d5a071b366eeca899b37ece4ce93b26cc14286d57fbcef")],
@@ -110,18 +91,14 @@ final class AllCommandTests: XCTestCase {
             let configPath = directoryPath.appending(component: "config.json")
             try localFileSystem.writeFileContents(configPath, bytes: ByteString(Array(configData)))
 
-            let stdout = try self.executeCommand(subcommand: "all", configPath: configPath.pathString, generateData: false).stdout
-            XCTAssert(stdout.contains("Create Package Release - All tests passed."))
-            XCTAssert(stdout.contains("List Package Releases - All tests passed."))
-            XCTAssert(stdout.contains("Fetch Package Release Information - All tests passed."))
+            XCTAssert(try self.executeCommand(subcommand: "fetch-package-release-info", configPath: configPath.pathString, generateData: false)
+                .stdout.contains("Fetch Package Release Information - All tests passed."))
         }
     }
 
     func test_run_generateConfig() throws {
         let configPath = self.fixturePath(filename: "gendata.json")
-        let stdout = try self.executeCommand(subcommand: "all", configPath: configPath, generateData: true).stdout
-        XCTAssert(stdout.contains("Create Package Release - All tests passed."))
-        XCTAssert(stdout.contains("List Package Releases - All tests passed."))
-        XCTAssert(stdout.contains("Fetch Package Release Information - All tests passed."))
+        XCTAssert(try self.executeCommand(subcommand: "fetch-package-release-info", configPath: configPath, generateData: true)
+            .stdout.contains("Fetch Package Release Information - All tests passed."))
     }
 }

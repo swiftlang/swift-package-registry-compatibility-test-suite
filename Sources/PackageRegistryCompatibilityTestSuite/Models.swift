@@ -21,6 +21,34 @@ struct PackageIdentity: Hashable, Codable, CustomStringConvertible {
     }
 }
 
+struct PackageRelease: Hashable, Codable, CustomStringConvertible {
+    /// Package scope and name
+    let package: PackageIdentity
+
+    /// Package release version
+    let version: String
+
+    var description: String {
+        "\(self.package)@\(self.version)"
+    }
+}
+
+// See 4.2.1
+struct PackageReleaseResource: Codable {
+    /// Resource name (e.g., `source-archive`)
+    let name: String
+
+    /// Content type of the resource (e.g., `application/zip`)
+    let type: String
+
+    // A hexadecimal representation of the SHA256 digest for the resource
+    let checksum: String
+
+    static func sourceArchive(checksum: String) -> PackageReleaseResource {
+        PackageReleaseResource(name: "source-archive", type: "application/zip", checksum: checksum)
+    }
+}
+
 struct TestError: Error, CustomStringConvertible {
     let message: String
 
