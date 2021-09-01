@@ -19,12 +19,14 @@ final class CreatePackageReleaseCommandTests: XCTestCase {
     }
 
     func test_run() throws {
-        XCTAssert(try self.executeCommand(subcommand: "create-package-release", generateData: false)
+        let configPath = self.fixturePath(filename: "local-registry.json")
+        XCTAssert(try self.executeCommand(subcommand: "create-package-release", configPath: configPath, generateData: false)
             .stdout.contains("Create Package Release - All tests passed."))
     }
 
-    func test_run_generateData() throws {
-        XCTAssert(try self.executeCommand(subcommand: "create-package-release", generateData: true)
+    func test_run_generateConfig() throws {
+        let configPath = self.fixturePath(filename: "gendata.json")
+        XCTAssert(try self.executeCommand(subcommand: "create-package-release", configPath: configPath, generateData: true)
             .stdout.contains("Create Package Release - All tests passed."))
     }
 }

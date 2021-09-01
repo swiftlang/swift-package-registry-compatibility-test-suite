@@ -13,5 +13,22 @@
             }
         ],
         "maxProcessingTimeInSeconds": 10
+    },
+    "listPackageReleases": {
+        "packages": [
+            {
+                "package": { "scope": "apple", "name": "swift-nio" },
+                "numberOfReleases": 3,
+                "versions": [ "1.14.2", "2.29.0", "2.30.0" ],
+                "unavailableVersions": [ "2.29.0" ],
+                "linkRelations": [ "latest-version", "canonical" ]
+            }
+        ],
+        "unknownPackages": [
+            { "scope": "unknown", "name": "unknown" }
+        ],
+        "packageURLProvided": true,
+        "problemProvided": true,
+        "paginationSupported": false
     }
 }

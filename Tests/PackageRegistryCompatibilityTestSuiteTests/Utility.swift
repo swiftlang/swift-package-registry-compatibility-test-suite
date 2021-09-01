@@ -13,6 +13,9 @@
 import XCTest
 
 import ArgumentParser
+import NIO
+import PackageRegistryClient
+import PackageRegistryModels
 import TSCBasic
 
 // From TSCTestSupport
@@ -72,21 +75,76 @@ extension XCTest {
     }
 }
 
-extension XCTest {
-    func executeCommand(subcommand: String, generateData: Bool) throws -> (stdout: String, stderr: String) {
+extension XCTestCase {
+    var registryURL: String {
         let host = ProcessInfo.processInfo.environment["API_SERVER_HOST"] ?? "127.0.0.1"
         let port = ProcessInfo.processInfo.environment["API_SERVER_PORT"].flatMap(Int.init) ?? 9229
-        let registryURL = "http://\(host):\(port)"
-
-        let configPath = self.fixturePath(filename: generateData ? "gendata.json" : "local-registry.json")
-
-        return try self.executeCommand(command: "package-registry-compatibility \(subcommand) \(registryURL) \(configPath) --allow-http \(generateData ? "--generate-data" : "")")
+        return "http://\(host):\(port)"
     }
 
-    func fixturePath(filename: String) -> String {
+    func executeCommand(subcommand: String, configPath: String, generateData: Bool) throws -> (stdout: String, stderr: String) {
+        return try self.executeCommand(command: "package-registry-compatibility \(subcommand) \(self.registryURL) \(configPath) --allow-http \(generateData ? "--generate-data" : "")")
+    }
+
+    func fixturePath(subdirectory: String = "CompatibilityTestSuite", filename: String) -> String {
+        self.fixtureURL(subdirectory: subdirectory, filename: filename).path
+    }
+
+    func fixtureURL(subdirectory: String = "CompatibilityTestSuite", filename: String) -> URL {
         URL(fileURLWithPath: #file).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Fixtures", isDirectory: true).appendingPathComponent("CompatibilityTestSuite", isDirectory: true)
+            .appendingPathComponent("Fixtures", isDirectory: true).appendingPathComponent(subdirectory, isDirectory: true)
             .appendingPathComponent(filename)
-            .path
     }
+
+    func createPackageReleases(scope: String, name: String, versions: [String], client: PackageRegistryClient, sourceArchives: [SourceArchiveMetadata]) {
+        runAsyncAndWaitFor({
+            for version in versions {
+                guard let archiveMetadata = sourceArchives.first(where: { $0.name == name && $0.version == version }) else {
+                    throw StringError(message: "Source archive for version \(version) not found")
+                }
+
+                let archiveURL = self.fixtureURL(subdirectory: "SourceArchives", filename: archiveMetadata.filename)
+                let archive = try Data(contentsOf: archiveURL)
+                let repositoryURL = archiveMetadata.repositoryURL.replacingOccurrences(of: archiveMetadata.scope, with: scope)
+                let metadata = PackageReleaseMetadata(repositoryURL: repositoryURL, commitHash: archiveMetadata.commitHash)
+
+                let response = try await client.createPackageRelease(scope: scope,
+                                                                     name: name,
+                                                                     version: version,
+                                                                     sourceArchive: archive,
+                                                                     metadata: metadata,
+                                                                     deadline: NIODeadline.now() + .seconds(20))
+                XCTAssertEqual(.created, response.status)
+            }
+        }, TimeInterval(versions.count * 20))
+    }
+}
+
+private extension XCTestCase {
+    // TODO: remove once XCTest supports async functions
+    func runAsyncAndWaitFor(_ closure: @escaping () async throws -> Void, _ timeout: TimeInterval = 10.0) {
+        let finished = expectation(description: "finished")
+        Task.detached {
+            try await closure()
+            finished.fulfill()
+        }
+        wait(for: [finished], timeout: timeout)
+    }
+}
+
+struct SourceArchiveMetadata: Codable {
+    let scope: String
+    let name: String
+    let version: String
+    let repositoryURL: String
+    let commitHash: String
+    let checksum: String
+
+    var filename: String {
+        "\(self.name)@\(self.version).zip"
+    }
+}
+
+struct StringError: Error {
+    let message: String
 }

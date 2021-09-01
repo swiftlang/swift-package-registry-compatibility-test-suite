@@ -39,3 +39,17 @@ func readData(at path: String) throws -> Data {
         throw TestError("Failed to read \(path): \(error)")
     }
 }
+
+extension String {
+    var flipcased: String {
+        String(self.map { c in
+            if c.isLowercase {
+                return Character(String(c).uppercased())
+            } else if c.isUppercase {
+                return Character(String(c).lowercased())
+            } else {
+                return c
+            }
+        })
+    }
+}
