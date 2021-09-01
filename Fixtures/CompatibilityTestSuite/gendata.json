@@ -39,4 +39,9 @@
     "fetchPackageReleaseInfo": {
         "linkHeaderIsSet": true
     },
+    "fetchPackageReleaseManifest": {
+        "contentLengthHeaderIsSet": true,
+        "contentDispositionHeaderIsSet": true,
+        "linkHeaderHasAlternateRelations": true
+    }
 }

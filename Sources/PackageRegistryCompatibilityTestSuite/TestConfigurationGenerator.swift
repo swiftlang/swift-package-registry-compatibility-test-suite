@@ -99,6 +99,9 @@ struct TestConfigurationGenerator {
             },
             fetchPackageReleaseInfo: try configuration.fetchPackageReleaseInfo.map {
                 try self.buildFetchPackageReleaseInfo(packages: packages, unknownPackages: unknownPackages, configuration: $0)
+            },
+            fetchPackageReleaseManifest: configuration.fetchPackageReleaseManifest.map {
+                self.buildFetchPackageReleaseManifest(packages: packages, unknownPackages: unknownPackages, configuration: $0)
             }
         )
     }
@@ -191,6 +194,28 @@ struct TestConfigurationGenerator {
         )
     }
 
+    private func buildFetchPackageReleaseManifest(packages: [PackageDescriptor],
+                                                  unknownPackages: [PackageIdentity],
+                                                  configuration: Configuration.FetchPackageReleaseManifest) -> FetchPackageReleaseManifestTests.Configuration {
+        FetchPackageReleaseManifestTests.Configuration(
+            packageReleases: packages.flatMap { package in
+                package.releases.map {
+                    .init(
+                        packageRelease: .init(package: package.id, version: $0.version.description),
+                        swiftVersions: $0.versionManifests,
+                        noSwiftVersions: $0.versionManifests != nil ? ["4.30"] : nil // non-existent Swift version
+                    )
+                }
+            },
+            unknownPackageReleases: Set(unknownPackages.map {
+                .init(package: $0, version: "1.0.0")
+            }),
+            contentLengthHeaderIsSet: configuration.contentLengthHeaderIsSet,
+            contentDispositionHeaderIsSet: configuration.contentDispositionHeaderIsSet,
+            linkHeaderHasAlternateRelations: configuration.linkHeaderHasAlternateRelations
+        )
+    }
+
     private func randomPackageIdentities(count: Int) -> [PackageIdentity] {
         guard count > 0 else { return [] }
 
@@ -265,6 +290,9 @@ extension TestConfigurationGenerator {
         /// For creating `FetchPackageReleaseInfoTests.Configuration`
         let fetchPackageReleaseInfo: FetchPackageReleaseInfo?
 
+        /// For creating `FetchPackageReleaseManifestTests.Configuration`
+        let fetchPackageReleaseManifest: FetchPackageReleaseManifest?
+
         struct PackageInfo: Codable {
             /// Identity to use for the test package. A random identity is generated if this is unspecified.
             let id: PackageIdentity?
@@ -314,6 +342,17 @@ extension TestConfigurationGenerator {
         struct FetchPackageReleaseInfo: Codable {
             /// If `true`, the generator will set `PackageReleaseExpectation.linkRelations` accordingly.
             let linkHeaderIsSet: Bool
+        }
+
+        struct FetchPackageReleaseManifest: Codable {
+            /// See `FetchPackageReleaseManifestTests.Configuration.contentLengthHeaderIsSet`
+            let contentLengthHeaderIsSet: Bool
+
+            /// See `FetchPackageReleaseManifestTests.Configuration.contentDispositionHeaderIsSet`
+            let contentDispositionHeaderIsSet: Bool
+
+            /// See `FetchPackageReleaseManifestTests.Configuration.linkHeaderHasAlternateRelations`
+            let linkHeaderHasAlternateRelations: Bool
         }
     }
 }

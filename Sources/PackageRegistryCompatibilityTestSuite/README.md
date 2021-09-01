@@ -9,15 +9,15 @@ and the corresponding [service specification](https://github.com/apple/swift-pac
 
 The compatibility test suite covers these API endpoints:
 
-| Sub-Command                                                               | API Endpoint                                                  | API Required |
-| :------------------------------------------------------------------------ | :------------------------------------------------------------ | :----------: |
-| [`list-package-releases`](#list-package-releases-sub-command)             | `GET /{scope}/{name}`                                         | Yes          |
-| [`fetch-package-release-info`](#fetch-package-release-info-sub-command)   | `GET /{scope}/{name}/{version}`                               | Yes          |
-| `fetch-package-release-manifest`                                          | `GET /{scope}/{name}/{version}/Package.swift{?swift-version}` | Yes          |
-| `download-source-archive`                                                 | `GET /{scope}/{name}/{version}.zip`                           | Yes          |
-| `lookup-package-identifiers`                                              | `GET /identifiers{?url}`                                      | Yes          |
-| [`create-package-release`](#create-package-release-sub-command)           | `PUT /{scope}/{name}/{version}`                               | No           |
-| [`all`](#all-sub-command)                                                 | All of the above                                              | N/A          |
+| Sub-Command                                       | API Endpoint                                                  | API Required |
+| :------------------------------------------------ | :------------------------------------------------------------ | :----------: |
+| [`list-package-releases`](#subcommand-1)          | `GET /{scope}/{name}`                                         | Yes          |
+| [`fetch-package-release-info`](#subcommand-2)     | `GET /{scope}/{name}/{version}`                               | Yes          |
+| [`fetch-package-release-manifest`](#subcommand-3) | `GET /{scope}/{name}/{version}/Package.swift{?swift-version}` | Yes          |
+| `download-source-archive`                         | `GET /{scope}/{name}/{version}.zip`                           | Yes          |
+| `lookup-package-identifiers`                      | `GET /identifiers{?url}`                                      | Yes          |
+| [`create-package-release`](#subcommand-6)         | `PUT /{scope}/{name}/{version}`                               | No           |
+| [`all`](#subcommand-all)                          | All of the above                                              | N/A          |
 
 ### Sub-command arguments and options
 
@@ -62,6 +62,7 @@ All HTTP server responses **must** include the following headers:
 - `Content-Version` ([3.5](https://github.com/apple/swift-package-manager/blob/main/Documentation/Registry.md#35-api-versioning))
 - `Content-Type` ([3.5](https://github.com/apple/swift-package-manager/blob/main/Documentation/Registry.md#35-api-versioning)) unless the response body is empty
 
+<a name="subcommand-1"></a>
 ### `list-package-releases` sub-command
 
 ```bash
@@ -180,7 +181,7 @@ A. For each package in `packages`:
 7. For each package release detail JSON object:
     1. There must be `url` key if `packageURLProvided` is `true`.
     2. If a version belongs to `unavailableVersions` and `problemProvided` is `true`, then there must be `problem` key.
-8. Repeat steps 2-7 with flipcased `scope` and `name` in the request URL to test for case-insensitivity.
+8. Repeat steps 1-7 with flipcased `scope` and `name` in the request URL to test for case-insensitivity.
 
 B. For each package in `unknownPackages`:
 1. Send `GET /{scope}/{name}` request and wait for server response.
@@ -191,6 +192,7 @@ C. The same as A except the request URI is `/{scope}/{name}.json`.
 
 D. The same as B except the request URI is `/{scope}/{name}.json`.
 
+<a name="subcommand-2"></a>
 ### `fetch-package-release-info` sub-command
 
 ```bash
@@ -277,7 +279,7 @@ configuration when `--generate-data` flag is set.
 The `fetchPackageReleaseInfo` object is also required:
 - `linkHeaderIsSet`: `true` indicates the server includes `Link` header (e.g., `latest-version`, `successor-version`, `predecessor-version` relations) in the response, thus the generate should set `linkRelations` accordingly.
 
-The tool will use these configurations to construct the `listPackageReleases` configuration described in the previous section for testing.
+The tool will use these configurations to construct the `fetchPackageReleaseInfo` configuration described in the previous section for testing.
 
 ###### Sample configuration
 
@@ -298,7 +300,7 @@ A. For each package release in `packageReleases`:
 4. Response body must be a JSON map with keys `id` and `version`.
 5. The response JSON map must have matching `resources`.
 6. If `metadata` is specified, the response JSON map's `metadata` must have matching key-value pairs.
-7. Repeat steps 2-6 with uppercased `scope` and `name` in the request URL to test for case-insensitivity.
+7. Repeat steps 1-6 with flipcased `scope` and `name` in the request URL to test for case-insensitivity.
 
 B. For each packageRelease in `unknownPackageReleases`:
 1. Send `GET /{scope}/{name}/{version}` request and wait for server response.
@@ -309,6 +311,140 @@ C. The same as A except the request URI is `/{scope}/{name}/{version}.json`.
 
 D. The same as B except the request URI is `/{scope}/{name}/{version}.json`.
 
+<a name="subcommand-3"></a>
+### `fetch-package-release-manifest` sub-command
+
+```bash
+package-registry-compatibility fetch-package-release-manifest <url> <config-path>
+```
+
+This sub-command tests the "fetch manifest for a package release" (`GET /{scope}/{name}/{version}/Package.swift`) API endpoint ([4.3](https://github.com/apple/swift-package-manager/blob/f3749218c8e803e52efaa0a2e8dd4c59edff9bf4/Documentation/Registry.md#43-fetch-manifest-for-a-package-release)).
+
+##### Sample server response
+
+```
+HTTP/1.1 200 OK
+Cache-Control: public, immutable
+Content-Type: text/x-swift
+Content-Disposition: attachment; filename="Package.swift"
+Content-Length: 361
+Content-Version: 1
+Link: <http://packages.example.com/mona/LinkedList/1.1.1/Package.swift?swift-version=4>; rel="alternate"; filename="Package@swift-4.swift"; swift-tools-version="4.0",
+      <http://packages.example.com/mona/LinkedList/1.1.1/Package.swift?swift-version=4.2>; rel="alternate"; filename="Package@swift-4.2.swift"; swift-tools-version="4.0"
+
+// swift-tools-version:5.0
+import PackageDescription
+
+let package = Package(
+    name: "LinkedList",
+    products: [
+        .library(name: "LinkedList", targets: ["LinkedList"])
+    ],
+    targets: [
+        .target(name: "LinkedList"),
+        .testTarget(name: "LinkedListTests", dependencies: ["LinkedList"]),
+    ],
+    swiftLanguageVersions: [.v4, .v5]
+)
+```
+
+#### Test configuration
+
+##### Without `--generate-data` flag
+
+The test configuration is a `fetchPackageReleaseManifest` JSON object with the following key-values:
+- `packageReleases`: An array of JSON objects describing package releases found in the registry:
+  - `packageRelease`: A JSON object that includes the `package` (`scope` and `name`) and `version`.
+  - `swiftVersions`: An array of Swift versions that have version-specific manifest (i.e., `Package@swift-{swift-version}.swift`).
+  - `noSwiftVersions`: An array of Swift versions that do not have version-specific manifest (i.e., `Package@swift-{swift-version}.swift`). The server is expected to return HTTP status code `303` which redirects client to the unqualified manifest (i.e., `Package.swift`).
+- `unknownPackageReleases`: An array of "package release" JSON objects for package releases that do not exist in the registry. In other words, the server is expected to return HTTP status code `404` for these.
+- `contentLengthHeaderIsSet`: If `true`, the `Content-Length` HTTP response header must be set.
+- `contentDispositionHeaderIsSet`: If `true`, the `Content-Disposition` HTTP response header must be set.
+- `linkHeaderHasAlternateRelations`: If `true`, the registry should include `alternate` relation(s) in the `Link` HTTP response header when fetching the unqualified manifest (i.e., `Package.swift`) and if the release has version-specific manifests.
+
+###### Sample configuration
+
+```json
+{
+    "fetchPackageReleaseManifest": {
+        "packageReleases": [
+            {
+                "packageRelease": {
+                    "package": { "scope": "sunshinejr", "name": "SwiftyUserDefaults" },
+                    "version": "5.3.0"
+                },
+                "swiftVersions": [ "4.2" ],
+                "noSwiftVersions": [ "5.0" ]
+            }
+        ],
+        "unknownPackageReleases": [
+            {
+                "package": { "scope": "unknown", "name": "unknown" },
+                "version": "1.0.0"
+            }
+        ],
+        "contentLengthHeaderIsSet": true,
+        "contentDispositionHeaderIsSet": true,
+        "linkHeaderHasAlternateRelations": true
+    }
+}
+```
+
+##### With `--generate-data` flag
+
+See [the corresponding section for the `create-package-release` sub-command](#generate-data-required) for required
+configuration when `--generate-data` flag is set.
+
+The `fetchPackageReleaseManifest` object is also required:
+- `contentLengthHeaderIsSet`: If `true`, the `Content-Length` HTTP response header must be set.
+- `contentDispositionHeaderIsSet`: If `true`, the `Content-Disposition` HTTP response header must be set.
+- `linkHeaderHasAlternateRelations`: If `true`, the registry should include `alternate` relation(s) in the `Link` HTTP response header when fetching the unqualified manifest (i.e., `Package.swift`) and if the release has version-specific manifests.
+
+The tool will use these configurations to construct the `fetchPackageReleaseManifest` configuration described in the previous section for testing.
+
+###### Sample configuration
+
+```json
+{
+    "fetchPackageReleaseManifest": {
+        "contentLengthHeaderIsSet": true,
+        "contentDispositionHeaderIsSet": true,
+        "linkHeaderHasAlternateRelations": true
+    }
+}
+```
+
+#### Test details
+
+For each package release in `packageReleases`:
+1. Send `GET /{scope}/{name}/{version}/Package.swift` request and wait for server response.
+2. Response status code must be `200`. Response must include `Content-Type` (`text/x-swift`) and `Content-Version` headers.
+3. If `contentLengthHeaderIsSet == true`, the response must include `Content-Length` header and response body length must match.
+4. If `contentDispositionHeaderIsSet == true`, the response must include `Content-Disposition` header and its value must contain `attachment; filename={filename}`.
+5. If `swiftVersions` is specified and `linkHeaderHasAlternateRelations == true`, then the `Link` response header must include `alternate` relation(s).
+6. Response body must be non-empty.
+7. Repeat steps 1-6 with flipcased `scope` and `name` in the request URL to test for case-insensitivity.
+8. For each Swift version in `swiftVersions`:
+    1. Send `GET /{scope}/{name}/{version}/Package.swift?swift-version={swiftVersion}` request and wait for server response.
+    2. Response status code must be `200`. Response must include `Content-Type` (`text/x-swift`) and `Content-Version` headers.
+    3. If `contentLengthHeaderIsSet == true`, the response must include `Content-Length` header and response body length must match.
+    4. If `contentDispositionHeaderIsSet == true`, the response must include `Content-Disposition` header and its value must contain `attachment; filename={filename}`.
+    5. Response body must be non-empty.
+9. For each Swift version in `noSwiftVersions`:
+    1. Send `GET /{scope}/{name}/{version}/Package.swift?swift-version={swiftVersion}` request and wait for server response.
+    2. Response status code must be `303`.
+    3. Response must include `Location` header.
+    4. The redirected response should have status code `200`. Response must include `Content-Type` (`text/x-swift`) and `Content-Version` headers.
+    5. If `contentLengthHeaderIsSet == true`, the response must include `Content-Length` header and response body length must match.
+    6. If `contentDispositionHeaderIsSet == true`, the response must include `Content-Disposition` header and its value must contain `attachment; filename={filename}`.
+    7. Response body must be non-empty.
+
+For each package in `unknownPackageReleases`:
+1. Send `GET /{scope}/{name}/{version}/Package.swift` request and wait for server response.
+2. Response status code must be `404`.
+3. Response body should be a problem details JSON object.
+
+<a name="subcommand-6"></a>
 ### `create-package-release` sub-command
 
 ```bash
@@ -454,6 +590,7 @@ B. For each package release in `packageReleases`:
 2. Response status code must be `409` since the package release already exists and package identity should be case-insensitive.
 3. Response body should be non-empty since the server should return a problem details JSON object.
 
+<a name="subcommand-all"></a>
 ### `all` sub-command
 
 ```bash
@@ -521,7 +658,7 @@ Create Package Release
  - Package registry URL: http://localhost:9229
  - API version: 1
 
-Test case: Create package release test-3r7uj5.package-3r7uj5@1.0.0
+Test case: Create package release test-rfavo9.package-rfavo9@1.0.0
   OK - Read source archive file
   OK - Read metadata file
   OK - HTTP request to create package release
@@ -530,7 +667,7 @@ Test case: Create package release test-3r7uj5.package-3r7uj5@1.0.0
   OK - "Location" response header
 Passed
 
-Test case: Create package release test-3r7uj5.package-3r7uj5@2.0.0
+Test case: Create package release test-rfavo9.package-rfavo9@1.1.0
   OK - Read source archive file
   OK - Read metadata file
   OK - HTTP request to create package release
@@ -539,7 +676,7 @@ Test case: Create package release test-3r7uj5.package-3r7uj5@2.0.0
   OK - "Location" response header
 Passed
 
-Test case: Create package release test-3r7uj5.package-3r7uj5@2.1.0
+Test case: Create package release test-rfavo9.package-rfavo9@2.0.0
   OK - Read source archive file
   OK - Read metadata file
   OK - HTTP request to create package release
@@ -548,7 +685,7 @@ Test case: Create package release test-3r7uj5.package-3r7uj5@2.1.0
   OK - "Location" response header
 Passed
 
-Test case: Create package release test-c5s3r6.package-c5s3r6@1.0.0
+Test case: Create package release test-an0zvr.package-an0zvr@1.0.0
   OK - Read source archive file
   OK - Read metadata file
   OK - HTTP request to create package release
@@ -557,7 +694,7 @@ Test case: Create package release test-c5s3r6.package-c5s3r6@1.0.0
   OK - "Location" response header
 Passed
 
-Test case: Publish duplicate package release TEST-3R7UJ5.PACKAGE-3R7UJ5@1.0.0
+Test case: Publish duplicate package release TEST-RFAVO9.PACKAGE-RFAVO9@1.0.0
   OK - Read source archive file
   OK - Read metadata file
   OK - HTTP request to create package release
@@ -565,7 +702,7 @@ Test case: Publish duplicate package release TEST-3R7UJ5.PACKAGE-3R7UJ5@1.0.0
   OK - Response body
 Passed
 
-Test case: Publish duplicate package release TEST-3R7UJ5.PACKAGE-3R7UJ5@2.0.0
+Test case: Publish duplicate package release TEST-RFAVO9.PACKAGE-RFAVO9@1.1.0
   OK - Read source archive file
   OK - Read metadata file
   OK - HTTP request to create package release
@@ -573,7 +710,7 @@ Test case: Publish duplicate package release TEST-3R7UJ5.PACKAGE-3R7UJ5@2.0.0
   OK - Response body
 Passed
 
-Test case: Publish duplicate package release TEST-3R7UJ5.PACKAGE-3R7UJ5@2.1.0
+Test case: Publish duplicate package release TEST-RFAVO9.PACKAGE-RFAVO9@2.0.0
   OK - Read source archive file
   OK - Read metadata file
   OK - HTTP request to create package release
@@ -581,7 +718,7 @@ Test case: Publish duplicate package release TEST-3R7UJ5.PACKAGE-3R7UJ5@2.1.0
   OK - Response body
 Passed
 
-Test case: Publish duplicate package release TEST-C5S3R6.PACKAGE-C5S3R6@1.0.0
+Test case: Publish duplicate package release TEST-AN0ZVR.PACKAGE-AN0ZVR@1.0.0
   OK - Read source archive file
   OK - Read metadata file
   OK - HTTP request to create package release
@@ -596,8 +733,8 @@ List Package Releases
  - Package registry URL: http://localhost:9229
  - API version: 1
 
-Test case: List releases for package test-3r7uj5.package-3r7uj5 (without .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-3r7uj5/package-3r7uj5
+Test case: List releases for package test-rfavo9.package-rfavo9 (without .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-rfavo9/package-rfavo9
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -605,16 +742,16 @@ Test case: List releases for package test-3r7uj5.package-3r7uj5 (without .json i
   OK - Parse response body
   OK - Number of releases
   OK - Release versions
-  OK - Parse details object for release 2.1.0
-  OK - "url" for release 2.1.0
   OK - Parse details object for release 1.0.0
   OK - "url" for release 1.0.0
+  OK - Parse details object for release 1.1.0
+  OK - "url" for release 1.1.0
   OK - Parse details object for release 2.0.0
   OK - "url" for release 2.0.0
 Passed
 
-Test case: List releases for package TEST-3R7UJ5.PACKAGE-3R7UJ5 (without .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/TEST-3R7UJ5/PACKAGE-3R7UJ5
+Test case: List releases for package TEST-RFAVO9.PACKAGE-RFAVO9 (without .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/TEST-RFAVO9/PACKAGE-RFAVO9
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -622,16 +759,16 @@ Test case: List releases for package TEST-3R7UJ5.PACKAGE-3R7UJ5 (without .json i
   OK - Parse response body
   OK - Number of releases
   OK - Release versions
-  OK - Parse details object for release 2.1.0
-  OK - "url" for release 2.1.0
+  OK - Parse details object for release 1.0.0
+  OK - "url" for release 1.0.0
+  OK - Parse details object for release 1.1.0
+  OK - "url" for release 1.1.0
   OK - Parse details object for release 2.0.0
   OK - "url" for release 2.0.0
-  OK - Parse details object for release 1.0.0
-  OK - "url" for release 1.0.0
 Passed
 
-Test case: List releases for package test-c5s3r6.package-c5s3r6 (without .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-c5s3r6/package-c5s3r6
+Test case: List releases for package test-an0zvr.package-an0zvr (without .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-an0zvr/package-an0zvr
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -643,8 +780,8 @@ Test case: List releases for package test-c5s3r6.package-c5s3r6 (without .json i
   OK - "url" for release 1.0.0
 Passed
 
-Test case: List releases for package TEST-C5S3R6.PACKAGE-C5S3R6 (without .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/TEST-C5S3R6/PACKAGE-C5S3R6
+Test case: List releases for package TEST-AN0ZVR.PACKAGE-AN0ZVR (without .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/TEST-AN0ZVR/PACKAGE-AN0ZVR
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -656,14 +793,14 @@ Test case: List releases for package TEST-C5S3R6.PACKAGE-C5S3R6 (without .json i
   OK - "url" for release 1.0.0
 Passed
 
-Test case: List releases for unknown package test-2z62u5.package-2z62u5 (without .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-2z62u5/package-2z62u5
+Test case: List releases for unknown package test-7pjcgk.package-7pjcgk (without .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-7pjcgk/package-7pjcgk
   OK - HTTP response status
   OK - Response body
 Passed
 
-Test case: List releases for package test-3r7uj5.package-3r7uj5 (with .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-3r7uj5/package-3r7uj5.json
+Test case: List releases for package test-rfavo9.package-rfavo9 (with .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-rfavo9/package-rfavo9.json
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -673,14 +810,14 @@ Test case: List releases for package test-3r7uj5.package-3r7uj5 (with .json in t
   OK - Release versions
   OK - Parse details object for release 2.0.0
   OK - "url" for release 2.0.0
-  OK - Parse details object for release 2.1.0
-  OK - "url" for release 2.1.0
+  OK - Parse details object for release 1.1.0
+  OK - "url" for release 1.1.0
   OK - Parse details object for release 1.0.0
   OK - "url" for release 1.0.0
 Passed
 
-Test case: List releases for package TEST-3R7UJ5.PACKAGE-3R7UJ5 (with .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/TEST-3R7UJ5/PACKAGE-3R7UJ5.json
+Test case: List releases for package TEST-RFAVO9.PACKAGE-RFAVO9 (with .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/TEST-RFAVO9/PACKAGE-RFAVO9.json
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -690,14 +827,14 @@ Test case: List releases for package TEST-3R7UJ5.PACKAGE-3R7UJ5 (with .json in t
   OK - Release versions
   OK - Parse details object for release 1.0.0
   OK - "url" for release 1.0.0
-  OK - Parse details object for release 2.1.0
-  OK - "url" for release 2.1.0
+  OK - Parse details object for release 1.1.0
+  OK - "url" for release 1.1.0
   OK - Parse details object for release 2.0.0
   OK - "url" for release 2.0.0
 Passed
 
-Test case: List releases for package test-c5s3r6.package-c5s3r6 (with .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-c5s3r6/package-c5s3r6.json
+Test case: List releases for package test-an0zvr.package-an0zvr (with .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-an0zvr/package-an0zvr.json
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -709,8 +846,8 @@ Test case: List releases for package test-c5s3r6.package-c5s3r6 (with .json in t
   OK - "url" for release 1.0.0
 Passed
 
-Test case: List releases for package TEST-C5S3R6.PACKAGE-C5S3R6 (with .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/TEST-C5S3R6/PACKAGE-C5S3R6.json
+Test case: List releases for package TEST-AN0ZVR.PACKAGE-AN0ZVR (with .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/TEST-AN0ZVR/PACKAGE-AN0ZVR.json
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -722,8 +859,8 @@ Test case: List releases for package TEST-C5S3R6.PACKAGE-C5S3R6 (with .json in t
   OK - "url" for release 1.0.0
 Passed
 
-Test case: List releases for unknown package test-2z62u5.package-2z62u5 (with .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-2z62u5/package-2z62u5.json
+Test case: List releases for unknown package test-7pjcgk.package-7pjcgk (with .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-7pjcgk/package-7pjcgk.json
   OK - HTTP response status
   OK - Response body
 Passed
@@ -735,8 +872,8 @@ Fetch Package Release Information
  - Package registry URL: http://localhost:9229
  - API version: 1
 
-Test case: Fetch info for package release test-3r7uj5.package-3r7uj5@1.0.0 (without .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-3r7uj5/package-3r7uj5/1.0.0
+Test case: Fetch info for package release test-rfavo9.package-rfavo9@1.0.0 (without .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-rfavo9/package-rfavo9/1.0.0
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -753,8 +890,8 @@ Test case: Fetch info for package release test-3r7uj5.package-3r7uj5@1.0.0 (with
   OK - "successor-version" relation in "Link" response header
 Passed
 
-Test case: Fetch info for package release TEST-3R7UJ5.PACKAGE-3R7UJ5@1.0.0 (without .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/TEST-3R7UJ5/PACKAGE-3R7UJ5/1.0.0
+Test case: Fetch info for package release TEST-RFAVO9.PACKAGE-RFAVO9@1.0.0 (without .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/TEST-RFAVO9/PACKAGE-RFAVO9/1.0.0
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -771,8 +908,8 @@ Test case: Fetch info for package release TEST-3R7UJ5.PACKAGE-3R7UJ5@1.0.0 (with
   OK - "successor-version" relation in "Link" response header
 Passed
 
-Test case: Fetch info for package release test-3r7uj5.package-3r7uj5@2.0.0 (without .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-3r7uj5/package-3r7uj5/2.0.0
+Test case: Fetch info for package release test-rfavo9.package-rfavo9@1.1.0 (without .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-rfavo9/package-rfavo9/1.1.0
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -783,15 +920,15 @@ Test case: Fetch info for package release test-3r7uj5.package-3r7uj5@2.0.0 (with
   OK - Key "resources"
   OK - Resource name=source-archive, type=application/zip
   OK - Key "metadata"
-  OK - Metadata key "commitHash"
   OK - Metadata key "repositoryURL"
-  OK - "latest-version" relation in "Link" response header
+  OK - Metadata key "commitHash"
   OK - "predecessor-version" relation in "Link" response header
   OK - "successor-version" relation in "Link" response header
+  OK - "latest-version" relation in "Link" response header
 Passed
 
-Test case: Fetch info for package release TEST-3R7UJ5.PACKAGE-3R7UJ5@2.0.0 (without .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/TEST-3R7UJ5/PACKAGE-3R7UJ5/2.0.0
+Test case: Fetch info for package release TEST-RFAVO9.PACKAGE-RFAVO9@1.1.0 (without .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/TEST-RFAVO9/PACKAGE-RFAVO9/1.1.0
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -802,15 +939,15 @@ Test case: Fetch info for package release TEST-3R7UJ5.PACKAGE-3R7UJ5@2.0.0 (with
   OK - Key "resources"
   OK - Resource name=source-archive, type=application/zip
   OK - Key "metadata"
-  OK - Metadata key "commitHash"
   OK - Metadata key "repositoryURL"
-  OK - "latest-version" relation in "Link" response header
+  OK - Metadata key "commitHash"
   OK - "predecessor-version" relation in "Link" response header
   OK - "successor-version" relation in "Link" response header
+  OK - "latest-version" relation in "Link" response header
 Passed
 
-Test case: Fetch info for package release test-3r7uj5.package-3r7uj5@2.1.0 (without .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-3r7uj5/package-3r7uj5/2.1.0
+Test case: Fetch info for package release test-rfavo9.package-rfavo9@2.0.0 (without .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-rfavo9/package-rfavo9/2.0.0
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -821,14 +958,14 @@ Test case: Fetch info for package release test-3r7uj5.package-3r7uj5@2.1.0 (with
   OK - Key "resources"
   OK - Resource name=source-archive, type=application/zip
   OK - Key "metadata"
-  OK - Metadata key "repositoryURL"
   OK - Metadata key "commitHash"
+  OK - Metadata key "repositoryURL"
   OK - "latest-version" relation in "Link" response header
   OK - "predecessor-version" relation in "Link" response header
 Passed
 
-Test case: Fetch info for package release TEST-3R7UJ5.PACKAGE-3R7UJ5@2.1.0 (without .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/TEST-3R7UJ5/PACKAGE-3R7UJ5/2.1.0
+Test case: Fetch info for package release TEST-RFAVO9.PACKAGE-RFAVO9@2.0.0 (without .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/TEST-RFAVO9/PACKAGE-RFAVO9/2.0.0
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -839,14 +976,14 @@ Test case: Fetch info for package release TEST-3R7UJ5.PACKAGE-3R7UJ5@2.1.0 (with
   OK - Key "resources"
   OK - Resource name=source-archive, type=application/zip
   OK - Key "metadata"
-  OK - Metadata key "repositoryURL"
   OK - Metadata key "commitHash"
+  OK - Metadata key "repositoryURL"
   OK - "latest-version" relation in "Link" response header
   OK - "predecessor-version" relation in "Link" response header
 Passed
 
-Test case: Fetch info for package release test-c5s3r6.package-c5s3r6@1.0.0 (without .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-c5s3r6/package-c5s3r6/1.0.0
+Test case: Fetch info for package release test-an0zvr.package-an0zvr@1.0.0 (without .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-an0zvr/package-an0zvr/1.0.0
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -862,8 +999,8 @@ Test case: Fetch info for package release test-c5s3r6.package-c5s3r6@1.0.0 (with
   OK - "latest-version" relation in "Link" response header
 Passed
 
-Test case: Fetch info for package release TEST-C5S3R6.PACKAGE-C5S3R6@1.0.0 (without .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/TEST-C5S3R6/PACKAGE-C5S3R6/1.0.0
+Test case: Fetch info for package release TEST-AN0ZVR.PACKAGE-AN0ZVR@1.0.0 (without .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/TEST-AN0ZVR/PACKAGE-AN0ZVR/1.0.0
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -879,32 +1016,14 @@ Test case: Fetch info for package release TEST-C5S3R6.PACKAGE-C5S3R6@1.0.0 (with
   OK - "latest-version" relation in "Link" response header
 Passed
 
-Test case: Fetch metadata for unknown package release test-2z62u5.package-2z62u5@1.0.0 (without .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-2z62u5/package-2z62u5/1.0.0
+Test case: Fetch metadata for unknown package release test-7pjcgk.package-7pjcgk@1.0.0 (without .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-7pjcgk/package-7pjcgk/1.0.0
   OK - HTTP response status
   OK - Response body
 Passed
 
-Test case: Fetch info for package release test-3r7uj5.package-3r7uj5@1.0.0 (with .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-3r7uj5/package-3r7uj5/1.0.0.json
-  OK - HTTP response status
-  OK - "Content-Type" response header
-  OK - "Content-Version" response header
-  OK - Response body
-  OK - Parse response body
-  OK - Key "id"
-  OK - Key "version"
-  OK - Key "resources"
-  OK - Resource name=source-archive, type=application/zip
-  OK - Key "metadata"
-  OK - Metadata key "commitHash"
-  OK - Metadata key "repositoryURL"
-  OK - "latest-version" relation in "Link" response header
-  OK - "successor-version" relation in "Link" response header
-Passed
-
-Test case: Fetch info for package release TEST-3R7UJ5.PACKAGE-3R7UJ5@1.0.0 (with .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/TEST-3R7UJ5/PACKAGE-3R7UJ5/1.0.0.json
+Test case: Fetch info for package release test-rfavo9.package-rfavo9@1.0.0 (with .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-rfavo9/package-rfavo9/1.0.0.json
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -921,8 +1040,8 @@ Test case: Fetch info for package release TEST-3R7UJ5.PACKAGE-3R7UJ5@1.0.0 (with
   OK - "successor-version" relation in "Link" response header
 Passed
 
-Test case: Fetch info for package release test-3r7uj5.package-3r7uj5@2.0.0 (with .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-3r7uj5/package-3r7uj5/2.0.0.json
+Test case: Fetch info for package release TEST-RFAVO9.PACKAGE-RFAVO9@1.0.0 (with .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/TEST-RFAVO9/PACKAGE-RFAVO9/1.0.0.json
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -936,12 +1055,11 @@ Test case: Fetch info for package release test-3r7uj5.package-3r7uj5@2.0.0 (with
   OK - Metadata key "commitHash"
   OK - Metadata key "repositoryURL"
   OK - "latest-version" relation in "Link" response header
-  OK - "predecessor-version" relation in "Link" response header
   OK - "successor-version" relation in "Link" response header
 Passed
 
-Test case: Fetch info for package release TEST-3R7UJ5.PACKAGE-3R7UJ5@2.0.0 (with .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/TEST-3R7UJ5/PACKAGE-3R7UJ5/2.0.0.json
+Test case: Fetch info for package release test-rfavo9.package-rfavo9@1.1.0 (with .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-rfavo9/package-rfavo9/1.1.0.json
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -952,15 +1070,15 @@ Test case: Fetch info for package release TEST-3R7UJ5.PACKAGE-3R7UJ5@2.0.0 (with
   OK - Key "resources"
   OK - Resource name=source-archive, type=application/zip
   OK - Key "metadata"
-  OK - Metadata key "commitHash"
   OK - Metadata key "repositoryURL"
-  OK - "latest-version" relation in "Link" response header
+  OK - Metadata key "commitHash"
   OK - "predecessor-version" relation in "Link" response header
   OK - "successor-version" relation in "Link" response header
+  OK - "latest-version" relation in "Link" response header
 Passed
 
-Test case: Fetch info for package release test-3r7uj5.package-3r7uj5@2.1.0 (with .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-3r7uj5/package-3r7uj5/2.1.0.json
+Test case: Fetch info for package release TEST-RFAVO9.PACKAGE-RFAVO9@1.1.0 (with .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/TEST-RFAVO9/PACKAGE-RFAVO9/1.1.0.json
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -973,12 +1091,31 @@ Test case: Fetch info for package release test-3r7uj5.package-3r7uj5@2.1.0 (with
   OK - Key "metadata"
   OK - Metadata key "repositoryURL"
   OK - Metadata key "commitHash"
+  OK - "predecessor-version" relation in "Link" response header
+  OK - "successor-version" relation in "Link" response header
+  OK - "latest-version" relation in "Link" response header
+Passed
+
+Test case: Fetch info for package release test-rfavo9.package-rfavo9@2.0.0 (with .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-rfavo9/package-rfavo9/2.0.0.json
+  OK - HTTP response status
+  OK - "Content-Type" response header
+  OK - "Content-Version" response header
+  OK - Response body
+  OK - Parse response body
+  OK - Key "id"
+  OK - Key "version"
+  OK - Key "resources"
+  OK - Resource name=source-archive, type=application/zip
+  OK - Key "metadata"
+  OK - Metadata key "commitHash"
+  OK - Metadata key "repositoryURL"
   OK - "latest-version" relation in "Link" response header
   OK - "predecessor-version" relation in "Link" response header
 Passed
 
-Test case: Fetch info for package release TEST-3R7UJ5.PACKAGE-3R7UJ5@2.1.0 (with .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/TEST-3R7UJ5/PACKAGE-3R7UJ5/2.1.0.json
+Test case: Fetch info for package release TEST-RFAVO9.PACKAGE-RFAVO9@2.0.0 (with .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/TEST-RFAVO9/PACKAGE-RFAVO9/2.0.0.json
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -989,14 +1126,14 @@ Test case: Fetch info for package release TEST-3R7UJ5.PACKAGE-3R7UJ5@2.1.0 (with
   OK - Key "resources"
   OK - Resource name=source-archive, type=application/zip
   OK - Key "metadata"
-  OK - Metadata key "repositoryURL"
   OK - Metadata key "commitHash"
+  OK - Metadata key "repositoryURL"
   OK - "latest-version" relation in "Link" response header
   OK - "predecessor-version" relation in "Link" response header
 Passed
 
-Test case: Fetch info for package release test-c5s3r6.package-c5s3r6@1.0.0 (with .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-c5s3r6/package-c5s3r6/1.0.0.json
+Test case: Fetch info for package release test-an0zvr.package-an0zvr@1.0.0 (with .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-an0zvr/package-an0zvr/1.0.0.json
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -1012,8 +1149,8 @@ Test case: Fetch info for package release test-c5s3r6.package-c5s3r6@1.0.0 (with
   OK - "latest-version" relation in "Link" response header
 Passed
 
-Test case: Fetch info for package release TEST-C5S3R6.PACKAGE-C5S3R6@1.0.0 (with .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/TEST-C5S3R6/PACKAGE-C5S3R6/1.0.0.json
+Test case: Fetch info for package release TEST-AN0ZVR.PACKAGE-AN0ZVR@1.0.0 (with .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/TEST-AN0ZVR/PACKAGE-AN0ZVR/1.0.0.json
   OK - HTTP response status
   OK - "Content-Type" response header
   OK - "Content-Version" response header
@@ -1029,8 +1166,123 @@ Test case: Fetch info for package release TEST-C5S3R6.PACKAGE-C5S3R6@1.0.0 (with
   OK - "latest-version" relation in "Link" response header
 Passed
 
-Test case: Fetch metadata for unknown package release test-2z62u5.package-2z62u5@1.0.0 (with .json in the URI)
-  OK - HTTP request: GET http://localhost:9229/test-2z62u5/package-2z62u5/1.0.0.json
+Test case: Fetch metadata for unknown package release test-7pjcgk.package-7pjcgk@1.0.0 (with .json in the URI)
+  OK - HTTP request: GET http://localhost:9229/test-7pjcgk/package-7pjcgk/1.0.0.json
+  OK - HTTP response status
+  OK - Response body
+Passed
+
+
+------------------------------------------------------------
+Fetch Package Release Manifest
+------------------------------------------------------------
+ - Package registry URL: http://localhost:9229
+ - API version: 1
+
+Test case: Fetch Package.swift for package release test-rfavo9.package-rfavo9@1.0.0
+  OK - HTTP request: GET http://localhost:9229/test-rfavo9/package-rfavo9/1.0.0/Package.swift
+  OK - HTTP response status
+  OK - "Content-Type" response header
+  OK - "Content-Version" response header
+  OK - Response body
+  OK - "Content-Disposition" response header
+  OK - "Content-Length" response header
+Passed
+
+Test case: Fetch Package.swift for package release TEST-RFAVO9.PACKAGE-RFAVO9@1.0.0
+  OK - HTTP request: GET http://localhost:9229/TEST-RFAVO9/PACKAGE-RFAVO9/1.0.0/Package.swift
+  OK - HTTP response status
+  OK - "Content-Type" response header
+  OK - "Content-Version" response header
+  OK - Response body
+  OK - "Content-Disposition" response header
+  OK - "Content-Length" response header
+Passed
+
+Test case: Fetch Package.swift for package release test-rfavo9.package-rfavo9@1.1.0
+  OK - HTTP request: GET http://localhost:9229/test-rfavo9/package-rfavo9/1.1.0/Package.swift
+  OK - HTTP response status
+  OK - "Content-Type" response header
+  OK - "Content-Version" response header
+  OK - Response body
+  OK - "Content-Disposition" response header
+  OK - "Content-Length" response header
+Passed
+
+Test case: Fetch Package.swift for package release TEST-RFAVO9.PACKAGE-RFAVO9@1.1.0
+  OK - HTTP request: GET http://localhost:9229/TEST-RFAVO9/PACKAGE-RFAVO9/1.1.0/Package.swift
+  OK - HTTP response status
+  OK - "Content-Type" response header
+  OK - "Content-Version" response header
+  OK - Response body
+  OK - "Content-Disposition" response header
+  OK - "Content-Length" response header
+Passed
+
+Test case: Fetch Package.swift for package release test-rfavo9.package-rfavo9@2.0.0
+  OK - HTTP request: GET http://localhost:9229/test-rfavo9/package-rfavo9/2.0.0/Package.swift
+  OK - HTTP response status
+  OK - "Content-Type" response header
+  OK - "Content-Version" response header
+  OK - Response body
+  OK - "Content-Disposition" response header
+  OK - "Content-Length" response header
+Passed
+
+Test case: Fetch Package.swift for package release TEST-RFAVO9.PACKAGE-RFAVO9@2.0.0
+  OK - HTTP request: GET http://localhost:9229/TEST-RFAVO9/PACKAGE-RFAVO9/2.0.0/Package.swift
+  OK - HTTP response status
+  OK - "Content-Type" response header
+  OK - "Content-Version" response header
+  OK - Response body
+  OK - "Content-Disposition" response header
+  OK - "Content-Length" response header
+Passed
+
+Test case: Fetch Package.swift for package release test-an0zvr.package-an0zvr@1.0.0
+  OK - HTTP request: GET http://localhost:9229/test-an0zvr/package-an0zvr/1.0.0/Package.swift
+  OK - HTTP response status
+  OK - "Content-Type" response header
+  OK - "Content-Version" response header
+  OK - Response body
+  OK - "Content-Disposition" response header
+  OK - "Content-Length" response header
+  OK - "alternate" relation in "Link" response header
+Passed
+
+Test case: Fetch Package.swift for package release TEST-AN0ZVR.PACKAGE-AN0ZVR@1.0.0
+  OK - HTTP request: GET http://localhost:9229/TEST-AN0ZVR/PACKAGE-AN0ZVR/1.0.0/Package.swift
+  OK - HTTP response status
+  OK - "Content-Type" response header
+  OK - "Content-Version" response header
+  OK - Response body
+  OK - "Content-Disposition" response header
+  OK - "Content-Length" response header
+  OK - "alternate" relation in "Link" response header
+Passed
+
+Test case: Fetch Package@swift-4.2.swift for package release test-an0zvr.package-an0zvr@1.0.0
+  OK - HTTP request: GET http://localhost:9229/test-an0zvr/package-an0zvr/1.0.0/Package.swift?swift-version=4.2
+  OK - HTTP response status
+  OK - "Content-Type" response header
+  OK - "Content-Version" response header
+  OK - Response body
+  OK - "Content-Disposition" response header
+  OK - "Content-Length" response header
+Passed
+
+Test case: Fetch missing Package@swift-4.30.swift for package release test-an0zvr.package-an0zvr@1.0.0
+  OK - HTTP request: GET http://localhost:9229/test-an0zvr/package-an0zvr/1.0.0/Package.swift?swift-version=4.30
+  OK - HTTP response status
+  OK - "Content-Type" response header
+  OK - "Content-Version" response header
+  OK - Response body
+  OK - "Content-Disposition" response header
+  OK - "Content-Length" response header
+Passed
+
+Test case: Fetch Package.swift for unknown package release test-7pjcgk.package-7pjcgk@1.0.0
+  OK - HTTP request: GET http://localhost:9229/test-7pjcgk/package-7pjcgk/1.0.0/Package.swift
   OK - HTTP response status
   OK - Response body
 Passed
@@ -1040,4 +1292,5 @@ Test summary:
 Create Package Release - All tests passed.
 List Package Releases - All tests passed.
 Fetch Package Release Information - All tests passed.
+Fetch Package Release Manifest - All tests passed.
 ```

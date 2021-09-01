@@ -42,7 +42,7 @@ final class FetchPackageReleaseInfoTests: APITest {
         }
 
         for packageRelease in self.configuration.unknownPackageReleases {
-            self.log.append(await TestCase(name: "Fetch metadata for unknown package release \(packageRelease.package.scope).\(packageRelease.package.name)@\(packageRelease.version) (with\(appendDotJSON ? "" : "out") .json in the URI)") { testCase in
+            self.log.append(await TestCase(name: "Fetch info for unknown package release \(packageRelease.package.scope).\(packageRelease.package.name)@\(packageRelease.version) (with\(appendDotJSON ? "" : "out") .json in the URI)") { testCase in
                 let url = "\(self.registryURL)/\(packageRelease.package.scope)/\(packageRelease.package.name)/\(packageRelease.version)\(appendDotJSON ? ".json" : "")"
 
                 testCase.mark("HTTP request: GET \(url)")
