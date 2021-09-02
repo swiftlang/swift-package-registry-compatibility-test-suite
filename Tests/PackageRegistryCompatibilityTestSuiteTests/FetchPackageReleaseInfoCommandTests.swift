@@ -58,7 +58,7 @@ final class FetchPackageReleaseInfoCommandTests: XCTestCase {
                         packageRelease: PackageRelease(package: PackageIdentity(scope: scope, name: name), version: "1.14.2"),
                         resources: [.sourceArchive(checksum: "43c63aad4ff999ca48aff499d879ebf68ce3afc7d69dcabe2ae2b1033646e983")],
                         keyValues: [
-                            "repositoryURL": "https://github.com/\(scope)/swift-nio",
+                            "repositoryURL": "https://github.com/\(scope)/\(name)",
                             "commitHash": "8da5c5a",
                         ],
                         linkRelations: ["latest-version", "successor-version"]
@@ -67,7 +67,7 @@ final class FetchPackageReleaseInfoCommandTests: XCTestCase {
                         packageRelease: PackageRelease(package: PackageIdentity(scope: scope, name: name), version: "2.29.0"),
                         resources: [.sourceArchive(checksum: "f44ce7dcc5d4fadf95e9a95c0e4345d0ae25a203ec63460883e1ca771e0b347b")],
                         keyValues: [
-                            "repositoryURL": "https://github.com/\(scope)/swift-nio",
+                            "repositoryURL": "https://github.com/\(scope)/\(name)",
                             "commitHash": "d161bf6",
                         ],
                         linkRelations: ["latest-version", "successor-version", "predecessor-version"]
@@ -76,7 +76,7 @@ final class FetchPackageReleaseInfoCommandTests: XCTestCase {
                         packageRelease: PackageRelease(package: PackageIdentity(scope: scope, name: name), version: "2.30.0"),
                         resources: [.sourceArchive(checksum: "e9a5540d37bf4fa0b5d5a071b366eeca899b37ece4ce93b26cc14286d57fbcef")],
                         keyValues: [
-                            "repositoryURL": "https://github.com/\(scope)/swift-nio",
+                            "repositoryURL": "https://github.com/\(scope)/\(name)",
                             "commitHash": "d79e333",
                         ],
                         linkRelations: ["latest-version", "predecessor-version"]

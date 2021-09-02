@@ -131,6 +131,15 @@ final class AllCommandTests: XCTestCase {
                 unknownSourceArchives: [PackageRelease(package: PackageIdentity(scope: unknownScope, name: "unknown"), version: "1.0.0")],
                 contentDispositionHeaderIsSet: true,
                 digestHeaderIsSet: true
+            ),
+            lookupPackageIdentifiers: LookupPackageIdentifiersTests.Configuration(
+                urls: [
+                    .init(
+                        url: "https://github.com/\(nioScope)/\(nioName)",
+                        packageIdentifiers: ["\(nioScope).\(nioName)"]
+                    ),
+                ],
+                unknownURLs: ["https://github.com/\(unknownScope)/unknown"]
             )
         )
         let configData = try JSONEncoder().encode(config)
@@ -145,6 +154,7 @@ final class AllCommandTests: XCTestCase {
             XCTAssert(stdout.contains("Fetch Package Release Information - All tests passed."))
             XCTAssert(stdout.contains("Fetch Package Release Manifest - All tests passed."))
             XCTAssert(stdout.contains("Download Source Archive - All tests passed."))
+            XCTAssert(stdout.contains("Lookup Package Identifiers - All tests passed."))
         }
     }
 
@@ -156,5 +166,6 @@ final class AllCommandTests: XCTestCase {
         XCTAssert(stdout.contains("Fetch Package Release Information - All tests passed."))
         XCTAssert(stdout.contains("Fetch Package Release Manifest - All tests passed."))
         XCTAssert(stdout.contains("Download Source Archive - All tests passed."))
+        XCTAssert(stdout.contains("Lookup Package Identifiers - All tests passed."))
     }
 }
