@@ -105,7 +105,9 @@ struct TestConfigurationGenerator {
             },
             downloadSourceArchive: configuration.downloadSourceArchive.map {
                 self.buildDownloadSourceArchive(packages: packages, unknownPackages: unknownPackages, configuration: $0)
-            }
+            },
+            lookupPackageIdentifiers: try self.buildLookupPackageIdentifiers(packages: packages, unknownPackages: unknownPackages,
+                                                                             configuration: configuration.lookupPackageIdentifiers)
         )
     }
 
@@ -239,6 +241,48 @@ struct TestConfigurationGenerator {
         )
     }
 
+    private func buildLookupPackageIdentifiers(packages: [PackageDescriptor],
+                                               unknownPackages: [PackageIdentity],
+                                               configuration: Configuration.LookupPackageIdentifiers?) throws -> LookupPackageIdentifiersTests.Configuration? {
+        guard let configuration = configuration else { return nil }
+
+        func repositoryURL(package: PackageDescriptor) throws -> String? {
+            if package.repositoryURL != nil { return package.repositoryURL }
+
+            guard let metadataKey = configuration.repositoryURLMetadataKey else { return nil }
+
+            for release in package.releases {
+                guard let metadataPath = release.metadataPath else { continue }
+
+                guard let metadata = try JSONSerialization.jsonObject(with: Data(contentsOf: metadataPath.asURL), options: []) as? [String: Any] else {
+                    throw TestError("Metadata file at \(metadataPath) contains invalid JSON")
+                }
+
+                if let repositoryURL = metadata[metadataKey] as? String {
+                    return repositoryURL
+                }
+            }
+
+            return nil
+        }
+
+        var urlPackageIdentifiers = [String: Set<String>]()
+        try packages.forEach {
+            guard let repositoryURL = try repositoryURL(package: $0) else { return }
+            var packageIdentifiers = urlPackageIdentifiers.removeValue(forKey: repositoryURL) ?? []
+            packageIdentifiers.insert($0.id.description)
+            urlPackageIdentifiers[repositoryURL] = packageIdentifiers
+        }
+        guard !urlPackageIdentifiers.isEmpty else { return nil }
+
+        return LookupPackageIdentifiersTests.Configuration(
+            urls: urlPackageIdentifiers.map { url, identifiers in
+                .init(url: url, packageIdentifiers: identifiers)
+            },
+            unknownURLs: Set(unknownPackages.map { "https://repos.test/\($0.scope)/\($0.name)" })
+        )
+    }
+
     private func randomPackageIdentities(count: Int) -> [PackageIdentity] {
         guard count > 0 else { return [] }
 
@@ -319,6 +363,9 @@ extension TestConfigurationGenerator {
         /// For creating `DownloadSourceArchiveTests.Configuration`
         let downloadSourceArchive: DownloadSourceArchive?
 
+        /// For creating `LookupPackageIdentifiersTests.Configuration`
+        let lookupPackageIdentifiers: LookupPackageIdentifiers?
+
         struct PackageInfo: Codable {
             /// Identity to use for the test package. A random identity is generated if this is unspecified.
             let id: PackageIdentity?
@@ -390,6 +437,11 @@ extension TestConfigurationGenerator {
 
             /// See `DownloadSourceArchiveTests.Configuration.SourceArchiveExpectation.hasDuplicateLinks`
             let linkHeaderHasDuplicateRelations: Bool
+        }
+
+        struct LookupPackageIdentifiers: Codable {
+            /// Metadata key of a package's repository URL
+            let repositoryURLMetadataKey: String?
         }
     }
 }

@@ -15,7 +15,7 @@ The compatibility test suite covers these API endpoints:
 | [`fetch-package-release-info`](#subcommand-2)     | `GET /{scope}/{name}/{version}`                               | Yes          |
 | [`fetch-package-release-manifest`](#subcommand-3) | `GET /{scope}/{name}/{version}/Package.swift{?swift-version}` | Yes          |
 | [`download-source-archive`](#subcommand-4)        | `GET /{scope}/{name}/{version}.zip`                           | Yes          |
-| `lookup-package-identifiers`                      | `GET /identifiers{?url}`                                      | Yes          |
+| [`lookup-package-identifiers`](#subcommand-5)          | `GET /identifiers{?url}`                                      | Yes          |
 | [`create-package-release`](#subcommand-6)         | `PUT /{scope}/{name}/{version}`                               | No           |
 | [`all`](#subcommand-all)                          | All of the above                                              | N/A          |
 
@@ -547,6 +547,91 @@ For each package release in `sourceArchives`:
 
 For each package in `unknownSourceArchives`:
 1. Send `GET /{scope}/{name}/{version}.zip` request and wait for server response.
+2. Response status code must be `404`.
+3. Response body should be a problem details JSON object.
+
+<a name="subcommand-5"></a>
+### `lookup-package-identifiers` sub-command
+
+```bash
+package-registry-compatibility lookup-package-identifiers <url> <config-path>
+```
+
+This sub-command tests the "lookup package identifiers registered for a URL" (`GET /identifiers{?url}`) API endpoint ([4.5](https://github.com/apple/swift-package-manager/blob/main/Documentation/Registry.md#45-lookup-package-identifiers-registered-for-a-url)).
+
+##### Sample server response
+
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Version: 1
+
+{
+    "identifiers": [
+      "mona.LinkedList"
+    ]
+}
+```
+
+#### Test configuration
+
+##### Without `--generate-data` flag
+
+The test configuration is a `lookupPackageIdentifiers` JSON object with the following key-values:
+- `urls`: An array of JSON objects describing URLs recognized by the registry and their expected responses:
+  - `url`: The URL to query package identifiers for.
+  - `packageIdentifiers`: An array of package identifiers associated with `url`.
+- `unknownURLs`: An array of URLs that are not recognized by the registry. In other words, the server is expected to return HTTP status code `404` for these.
+
+###### Sample configuration
+
+```json
+{
+    "lookupPackageIdentifiers": {
+        "urls": [
+            {
+                "url": "https://github.com/apple/swift-nio",
+                "packageIdentifiers": [ "apple.swift-nio" ]
+            }
+        ],
+        "unknownURLs": [
+            "https://github.com/unknown/unknown"
+        ]
+    }
+}
+```
+
+##### With `--generate-data` flag
+
+See [the corresponding section for the `create-package-release` sub-command](#generate-data-required) for required
+configuration when `--generate-data` flag is set.
+
+The `lookupPackageIdentifiers` object is also required:
+- `repositoryURLMetadataKey`: Key in the package metadata whose value is the package's repository URL. Repository URLs will be used to lookup package identifiers.
+
+The tool will use these configurations to construct the `lookupPackageIdentifiers` configuration described in the previous section for testing.
+
+###### Sample configuration
+
+```json
+{
+    "lookupPackageIdentifiers": {
+        "repositoryURLMetadataKey": "repositoryURL"
+    }
+}
+```
+
+#### Test details
+
+For each URL in `urls`:
+1. Send `GET /identifiers{?url}` request and wait for server response.
+2. Response status code must be `200`. Response must include `Content-Type` (`application/json`) and `Content-Version` headers.
+3. Response body must be a JSON object with `identifiers` key.
+4. The value of `identifiers` must match `packageIdentifiers`.
+5. Repeat steps 1-4 with flipcased `url` query param to test for case-insensitivity.
+
+For each URL in `unknownURLs`:
+1. Send `GET /identifiers{?url}` request and wait for server response.
 2. Response status code must be `404`.
 3. Response body should be a problem details JSON object.
 
@@ -1091,10 +1176,44 @@ Test case: Fetch source archive for unknown package release test-bveboo.package-
 Passed
 
 
+------------------------------------------------------------
+Lookup Package Identifiers
+------------------------------------------------------------
+ - Package registry URL: http://localhost:9229
+ - API version: 1
+
+Test case: Lookup package identifiers for URL https://github.com/test-yc9jwg/package-yc9jwg
+  OK - HTTP request: GET http://localhost:9229/identifiers?url=https://github.com/test-yc9jwg/package-yc9jwg
+  OK - HTTP response status
+  OK - "Content-Type" response header
+  OK - "Content-Version" response header
+  OK - Parse response body
+  OK - Package identifiers
+Passed
+
+Test case: Lookup package identifiers for URL HTTPS://GITHUB.COM/TEST-YC9JWG/PACKAGE-YC9JWG
+  OK - HTTP request: GET http://localhost:9229/identifiers?url=HTTPS://GITHUB.COM/TEST-YC9JWG/PACKAGE-YC9JWG
+  OK - HTTP response status
+  OK - "Content-Type" response header
+  OK - "Content-Version" response header
+  OK - Parse response body
+  OK - Package identifiers
+Passed
+
+...
+
+Test case: Lookup package identifiers for unknown URL https://repos.test/test-6iait6/package-6iait6
+  OK - HTTP request: GET http://localhost:9229/identifiers?url=https://repos.test/test-6iait6/package-6iait6
+  OK - HTTP response status
+  OK - Response body
+Passed
+
+
 Test summary:
 Create Package Release - All tests passed.
 List Package Releases - All tests passed.
 Fetch Package Release Information - All tests passed.
 Fetch Package Release Manifest - All tests passed.
 Download Source Archive - All tests passed.
+Lookup Package Identifiers - All tests passed.
 ```

@@ -98,5 +98,16 @@
         ],
         "contentDispositionHeaderIsSet": true,
         "digestHeaderIsSet": true
+    },
+    "lookupPackageIdentifiers": {
+        "urls": [
+            {
+                "url": "https://github.com/apple/swift-nio",
+                "packageIdentifiers": [ "apple.swift-nio" ]
+            }
+        ],
+        "unknownURLs": [
+            "https://github.com/unknown/unknown"
+        ]
     }
 }

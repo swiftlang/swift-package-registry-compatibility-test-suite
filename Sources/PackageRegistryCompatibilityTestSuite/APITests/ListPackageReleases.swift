@@ -13,7 +13,6 @@
 import Foundation
 
 import AsyncHTTPClient
-import NIO
 
 final class ListPackageReleasesTests: APITest {
     let configuration: Configuration
