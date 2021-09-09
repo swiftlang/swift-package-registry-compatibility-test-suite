@@ -31,6 +31,7 @@ struct PackageRegistryCompatibilityTestSuite: AsyncParsableCommand {
             ListPackageReleases.self,
             FetchPackageReleaseInfo.self,
             FetchPackageReleaseManifest.self,
+            DownloadSourceArchive.self,
             All.self,
         ],
         helpNames: [.short, .long, .customLong("help", withSingleDash: true)]
@@ -138,6 +139,7 @@ struct PackageRegistryCompatibilityTestSuite: AsyncParsableCommand {
                 testPlan.addStep(.createPackageRelease(createPackageReleaseConfig!), required: true) // !-safe since we check for nil above
             }
             testPlan.addStep(.listPackageReleases(listPackageReleasesConfig))
+
             try await testPlan.execute()
         }
     }
@@ -253,6 +255,65 @@ struct PackageRegistryCompatibilityTestSuite: AsyncParsableCommand {
                 testPlan.addStep(.createPackageRelease(createPackageReleaseConfig!), required: true) // !-safe since we check for nil above
             }
             testPlan.addStep(.fetchPackageReleaseManifest(fetchPackageReleaseManifestConfig))
+
+            try await testPlan.execute()
+        }
+    }
+
+    /// Command for testing "download source archive" API
+    struct DownloadSourceArchive: AsyncParsableCommand {
+        @Argument(help: "Package registry URL")
+        var url: String
+
+        @Argument(help: "Path to the test configuration file")
+        var configPath: String
+
+        @Option(help: """
+        Authentication token in the format of <type>:<token> where <type> is one of basic, bearer, or token.
+        The value of <token> varies depending on <type>. e.g., for basic authentication, <token> would be
+        username:password (i.e., basic:username:password).
+        """)
+        var authToken: String?
+
+        @Option(help: "Package registry API version. Defaults to version \(defaultAPIVersion).")
+        var apiVersion: String?
+
+        @Flag(name: .long, help: "Warn instead of error in case of non-HTTPS")
+        var allowHTTP: Bool = false
+
+        @Flag(name: .long, help: "Generate test data according to the configuration file")
+        var generateData: Bool = false
+
+        func run() async throws {
+            try self.checkRegistryURL(self.url, allowHTTP: self.allowHTTP)
+            print("")
+
+            try await self.readConfigAndRunTests(configPath: self.configPath, generateData: self.generateData, test: self.run)
+        }
+
+        private func run(configuration: Configuration) async throws {
+            var createPackageReleaseConfig = configuration.createPackageRelease
+            if self.generateData, createPackageReleaseConfig == nil {
+                throw TestError("\"createPackageRelease\" configuration is required when --generate-data is set")
+            }
+
+            // Convert file paths in the configuration to absolute paths if needed
+            try createPackageReleaseConfig?.ensureAbsolutePaths(relativeTo: self.configPath)
+
+            guard let downloadSourceArchiveConfig = configuration.downloadSourceArchive else {
+                throw TestError("Test configuration not found")
+            }
+
+            print("Running other test preparations...")
+            let httpClient = makeHTTPClient()
+            defer { try! httpClient.syncShutdown() }
+
+            var testPlan = TestPlan(registryURL: self.url, authToken: self.authToken, apiVersion: self.apiVersion, httpClient: httpClient)
+            if self.generateData {
+                testPlan.addStep(.createPackageRelease(createPackageReleaseConfig!), required: true) // !-safe since we check for nil above
+            }
+            testPlan.addStep(.downloadSourceArchive(downloadSourceArchiveConfig))
+
             try await testPlan.execute()
         }
     }
@@ -299,7 +360,8 @@ struct PackageRegistryCompatibilityTestSuite: AsyncParsableCommand {
 
             guard let listPackageReleasesConfig = configuration.listPackageReleases,
                   let fetchPackageReleaseInfoConfig = configuration.fetchPackageReleaseInfo,
-                  let fetchPackageReleaseManifestConfig = configuration.fetchPackageReleaseManifest else {
+                  let fetchPackageReleaseManifestConfig = configuration.fetchPackageReleaseManifest,
+                  let downloadSourceArchiveConfig = configuration.downloadSourceArchive else {
                 throw TestError("Test configuration not found")
             }
 
@@ -314,6 +376,7 @@ struct PackageRegistryCompatibilityTestSuite: AsyncParsableCommand {
             testPlan.addStep(.listPackageReleases(listPackageReleasesConfig))
             testPlan.addStep(.fetchPackageReleaseInfo(fetchPackageReleaseInfoConfig))
             testPlan.addStep(.fetchPackageReleaseManifest(fetchPackageReleaseManifestConfig))
+            testPlan.addStep(.downloadSourceArchive(downloadSourceArchiveConfig))
 
             try await testPlan.execute()
         }
@@ -326,15 +389,18 @@ extension PackageRegistryCompatibilityTestSuite {
         let listPackageReleases: ListPackageReleasesTests.Configuration?
         let fetchPackageReleaseInfo: FetchPackageReleaseInfoTests.Configuration?
         let fetchPackageReleaseManifest: FetchPackageReleaseManifestTests.Configuration?
+        let downloadSourceArchive: DownloadSourceArchiveTests.Configuration?
 
         init(createPackageRelease: CreatePackageReleaseTests.Configuration? = nil,
              listPackageReleases: ListPackageReleasesTests.Configuration? = nil,
              fetchPackageReleaseInfo: FetchPackageReleaseInfoTests.Configuration? = nil,
-             fetchPackageReleaseManifest: FetchPackageReleaseManifestTests.Configuration? = nil) {
+             fetchPackageReleaseManifest: FetchPackageReleaseManifestTests.Configuration? = nil,
+             downloadSourceArchive: DownloadSourceArchiveTests.Configuration? = nil) {
             self.createPackageRelease = createPackageRelease
             self.listPackageReleases = listPackageReleases
             self.fetchPackageReleaseInfo = fetchPackageReleaseInfo
             self.fetchPackageReleaseManifest = fetchPackageReleaseManifest
+            self.downloadSourceArchive = downloadSourceArchive
         }
     }
 }
@@ -394,6 +460,22 @@ extension PackageRegistryCompatibilityTestSuite {
                                                configuration: FetchPackageReleaseManifestTests.Configuration,
                                                httpClient: HTTPClient) async -> TestLog {
         let test = FetchPackageReleaseManifestTests(
+            registryURL: registryURL,
+            authToken: authToken,
+            apiVersion: apiVersion,
+            configuration: configuration,
+            httpClient: httpClient
+        )
+        await test.run()
+        return test.log
+    }
+
+    static func runDownloadSourceArchive(registryURL: String,
+                                         authToken: AuthenticationToken?,
+                                         apiVersion: String,
+                                         configuration: DownloadSourceArchiveTests.Configuration,
+                                         httpClient: HTTPClient) async -> TestLog {
+        let test = DownloadSourceArchiveTests(
             registryURL: registryURL,
             authToken: authToken,
             apiVersion: apiVersion,
@@ -476,6 +558,12 @@ private struct TestPlan: @unchecked Sendable {
                                                                                                      apiVersion: self.apiVersion,
                                                                                                      configuration: configuration,
                                                                                                      httpClient: self.httpClient)
+            case .downloadSourceArchive(let configuration):
+                testLog = await PackageRegistryCompatibilityTestSuite.runDownloadSourceArchive(registryURL: self.registryURL,
+                                                                                               authToken: self.authToken,
+                                                                                               apiVersion: self.apiVersion,
+                                                                                               configuration: configuration,
+                                                                                               httpClient: self.httpClient)
             }
 
             summaries.append(testLog.summary)
@@ -510,6 +598,7 @@ private struct TestPlan: @unchecked Sendable {
         case listPackageReleases(ListPackageReleasesTests.Configuration)
         case fetchPackageReleaseInfo(FetchPackageReleaseInfoTests.Configuration)
         case fetchPackageReleaseManifest(FetchPackageReleaseManifestTests.Configuration)
+        case downloadSourceArchive(DownloadSourceArchiveTests.Configuration)
 
         var label: String {
             switch self {
@@ -521,6 +610,8 @@ private struct TestPlan: @unchecked Sendable {
                 return "Fetch Package Release Information"
             case .fetchPackageReleaseManifest:
                 return "Fetch Package Release Manifest"
+            case .downloadSourceArchive:
+                return "Download Source Archive"
             }
         }
     }

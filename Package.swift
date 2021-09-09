@@ -105,6 +105,7 @@ let package = Package(
             "PackageRegistryModels",
             "PackageRegistryClient",
             .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
+            .product(name: "Crypto", package: "swift-crypto"),
         ]),
     ]
 )

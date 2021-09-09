@@ -79,5 +79,24 @@
         "contentLengthHeaderIsSet": true,
         "contentDispositionHeaderIsSet": true,
         "linkHeaderHasAlternateRelations": true
+    },
+    "downloadSourceArchive": {
+        "sourceArchives": [
+            {
+                "packageRelease": {
+                    "package": { "scope": "apple", "name": "swift-nio" },
+                    "version": "2.30.0",
+                },
+                "hasDuplicateLinks": false
+            }
+        ],
+        "unknownSourceArchives": [
+            {
+                "package": { "scope": "unknown", "name": "unknown" },
+                "version": "1.0.0"
+            }
+        ],
+        "contentDispositionHeaderIsSet": true,
+        "digestHeaderIsSet": true
     }
 }

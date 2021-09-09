@@ -127,6 +127,28 @@ struct Link {
     let url: String
 }
 
+struct Digest: Equatable, CustomStringConvertible {
+    let algorithm: HashAlgorithm
+    let checksum: String
+
+    init(algorithm: HashAlgorithm, checksum: String) {
+        self.algorithm = algorithm
+        self.checksum = checksum
+    }
+
+    var description: String {
+        "\(self.algorithm)=\(self.checksum)"
+    }
+}
+
+enum HashAlgorithm: String, Equatable, CustomStringConvertible {
+    case sha256 = "sha-256"
+
+    var description: String {
+        self.rawValue
+    }
+}
+
 extension AuthenticationToken {
     var authorizationHeader: String? {
         switch self.scheme {
@@ -170,5 +192,24 @@ extension HTTPClient.Response {
                 return Link(relation: relation, url: String(url))
             }
         }.flatMap { $0 }
+    }
+
+    func parseDigestHeader(for testCase: inout TestCase) throws -> Digest? {
+        testCase.mark("Parse \"Digest\" response header")
+        guard let digestHeader = self.headers["Digest"].first else {
+            return nil
+        }
+
+        let parts = digestHeader.split(separator: "=", maxSplits: 1)
+        guard parts.count == 2 else {
+            throw TestError("\"Digest\" header is invalid")
+        }
+
+        let algorithmString = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let algorithm = HashAlgorithm(rawValue: algorithmString) else {
+            throw TestError("Unsupported algorithm \"\(algorithmString)\" in the \"Digest\" header")
+        }
+        let checksum = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        return Digest(algorithm: algorithm, checksum: checksum)
     }
 }
