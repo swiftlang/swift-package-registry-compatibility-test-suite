@@ -84,6 +84,7 @@ extension PackageRegistry {
             apiRoutes.delete(":scope", ":name", ":version", use: packageReleasesController.delete)
 
             // 4 A server should support `OPTIONS` requests
+            apiRoutes.on(.OPTIONS, "*", use: makeOptionsRequestHandler(allowMethods: nil))
             apiRoutes.on(.OPTIONS, ":scope", ":name", use: makeOptionsRequestHandler(allowMethods: [.GET]))
             apiRoutes.on(.OPTIONS, ":scope", ":name", ":version") { request throws -> Response in
                 guard let version = request.parameters.get("version") else {
@@ -120,10 +121,12 @@ extension PackageRegistry {
     }
 }
 
-private func makeOptionsRequestHandler(allowMethods: [HTTPMethod]) -> ((Request) -> Response) {
+private func makeOptionsRequestHandler(allowMethods: [HTTPMethod]?) -> ((Request) -> Response) {
     { _ in
         var headers = HTTPHeaders()
-        headers.replaceOrAdd(name: .allow, value: allowMethods.map(\.string).joined(separator: ","))
+        if let allowMethods = allowMethods {
+            headers.replaceOrAdd(name: .allow, value: allowMethods.map(\.string).joined(separator: ","))
+        }
         let links = [
             "<https://github.com/apple/swift-package-manager/blob/main/Documentation/Registry.md>; rel=\"service-doc\"",
             "<https://github.com/apple/swift-package-manager/blob/main/Documentation/Registry.md#appendix-a---openapi-document>; rel=\"service-desc\"",
