@@ -184,7 +184,7 @@ extension HTTPClient.Response {
 
                 let url = parts[0].trimmingCharacters(in: .whitespacesAndNewlines).dropFirst(1).dropLast(1) // Remove < > from beginning and end
 
-                guard let rel = parts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter({ $0.hasPrefix("rel=") }).first else {
+                guard let rel = parts.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ $0.hasPrefix("rel=") }).first else {
                     return nil
                 }
                 let relation = String(rel.dropFirst("rel=".count).dropFirst(1).dropLast(1)) // Remove " from beginning and end
