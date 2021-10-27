@@ -21,9 +21,9 @@ let package = Package(
         .executable(name: "package-registry-compatibility", targets: ["PackageRegistryCompatibilityTestSuite"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.32.1")),
-        .package(url: "https://github.com/vapor/vapor.git", .upToNextMajor(from: "4.48.3")),
-        .package(url: "https://github.com/swift-server/swift-service-lifecycle.git", .branch("main")), // TODO: pin to release with async/await support
+        .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.33.0")),
+        .package(url: "https://github.com/vapor/vapor.git", .upToNextMajor(from: "4.50.0")),
+        .package(url: "https://github.com/swift-server/swift-service-lifecycle.git", .upToNextMajor(from: "1.0.0-alpha.10")),
         .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.0.0")),
         .package(url: "https://github.com/apple/swift-metrics.git", .upToNextMajor(from: "2.0.0")),
         .package(url: "https://github.com/apple/swift-statsd-client.git", .upToNextMajor(from: "1.0.0-alpha")),
@@ -31,7 +31,7 @@ let package = Package(
         .package(url: "https://github.com/vapor/multipart-kit.git", .upToNextMajor(from: "4.2.1")),
         .package(url: "https://github.com/vapor/postgres-kit.git", .upToNextMajor(from: "2.3.0")),
         .package(url: "https://github.com/swift-server/async-http-client.git", .upToNextMajor(from: "1.3.0")),
-        .package(url: "https://github.com/apple/swift-atomics.git", .upToNextMajor(from: "0.0.3")),
+        .package(url: "https://github.com/apple/swift-atomics.git", .upToNextMajor(from: "1.0.2")),
         .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "0.4.3")),
         .package(url: "https://github.com/apple/swift-crypto.git", .upToNextMajor(from: "1.1.6")),
     ],
@@ -42,7 +42,7 @@ let package = Package(
 
         .target(name: "PostgresMigrations", dependencies: [
             "DatabaseMigrations",
-            .product(name: "_NIOConcurrency", package: "swift-nio"), // async/await bridge
+            .product(name: "NIOCore", package: "swift-nio"), // async/await bridge
             .product(name: "PostgresKit", package: "postgres-kit"),
         ]),
 
@@ -53,7 +53,7 @@ let package = Package(
                               "PostgresMigrations",
                               "PackageRegistryModels",
                               .product(name: "NIO", package: "swift-nio"),
-                              .product(name: "_NIOConcurrency", package: "swift-nio"), // async/await bridge
+                              .product(name: "NIOCore", package: "swift-nio"), // async/await bridge
                               .product(name: "Vapor", package: "vapor"),
                               .product(name: "Lifecycle", package: "swift-service-lifecycle"),
                               .product(name: "LifecycleNIOCompat", package: "swift-service-lifecycle"),
@@ -69,7 +69,7 @@ let package = Package(
 
         .target(name: "PackageRegistryClient", dependencies: [
             .product(name: "AsyncHTTPClient", package: "async-http-client"),
-            .product(name: "_NIOConcurrency", package: "swift-nio"), // async/await bridge
+            .product(name: "NIOCore", package: "swift-nio"), // async/await bridge
             .product(name: "Atomics", package: "swift-atomics"),
             .product(name: "Logging", package: "swift-log"),
         ]),
@@ -84,7 +84,7 @@ let package = Package(
                               "PackageRegistryClient",
                               .product(name: "ArgumentParser", package: "swift-argument-parser"),
                               .product(name: "AsyncHTTPClient", package: "async-http-client"),
-                              .product(name: "_NIOConcurrency", package: "swift-nio"), // async/await bridge
+                              .product(name: "NIOCore", package: "swift-nio"), // async/await bridge
                               .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
                               .product(name: "Atomics", package: "swift-atomics"),
                           ],

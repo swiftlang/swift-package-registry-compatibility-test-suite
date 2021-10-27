@@ -560,7 +560,7 @@ final class BasicAPITests: XCTestCase {
             XCTAssertEqual("bytes", response.headers["Accept-Ranges"].first)
             XCTAssertEqual("public, immutable", response.headers["Cache-Control"].first)
             XCTAssertEqual("application/zip", response.headers["Content-Type"].first)
-            XCTAssertEqual("attachment; filename=\"\(name)-1.0.0.zip\"".lowercased, response.headers["Content-Disposition"].first?.lowercased())
+            XCTAssertEqual("attachment; filename=\"\(name)-1.0.0.zip\"".lowercased(), response.headers["Content-Disposition"].first?.lowercased())
             XCTAssertEqual("1", response.headers["Content-Version"].first)
 
             guard let responseBody = response.body, responseBody.readableBytes > 0 else {

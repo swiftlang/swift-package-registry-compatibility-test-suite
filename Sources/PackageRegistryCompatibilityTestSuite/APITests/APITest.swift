@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import _NIOConcurrency
 import AsyncHTTPClient
 import NIO
+import NIOCore
 import NIOHTTP1
 
 class APITest: @unchecked Sendable {

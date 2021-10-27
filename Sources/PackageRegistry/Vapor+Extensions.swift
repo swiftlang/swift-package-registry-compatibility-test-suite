@@ -141,49 +141,6 @@ extension Response {
     }
 }
 
-// MARK: - Request handler
-
-extension RoutesBuilder {
-    @discardableResult
-    func get<Response>(_ path: PathComponent...,
-                       use closure: @escaping (Request) async throws -> Response) -> Route where Response: ResponseEncodable {
-        self.on(.GET, path, use: closure)
-    }
-
-    @discardableResult
-    func delete<Response>(_ path: PathComponent...,
-                          use closure: @escaping (Request) async throws -> Response) -> Route where Response: ResponseEncodable {
-        self.on(.DELETE, path, use: closure)
-    }
-
-    @discardableResult
-    func on<Response>(_ method: HTTPMethod,
-                      _ path: PathComponent...,
-                      body: HTTPBodyStreamStrategy = .collect,
-                      use closure: @escaping (Request) async throws -> Response) -> Route where Response: ResponseEncodable {
-        self.on(method, path, body: body, use: closure)
-    }
-
-    @discardableResult
-    func on<Response>(_ method: HTTPMethod,
-                      _ path: [PathComponent],
-                      body: HTTPBodyStreamStrategy = .collect,
-                      use closure: @escaping (Request) async throws -> Response) -> Route where Response: ResponseEncodable {
-        self.on(method, path, body: body, use: { request -> EventLoopFuture<Response> in
-            let promise = request.eventLoop.makePromise(of: Response.self)
-            Task.detached {
-                do {
-                    let response = try await closure(request)
-                    promise.succeed(response)
-                } catch {
-                    promise.fail(error)
-                }
-            }
-            return promise.futureResult
-        })
-    }
-}
-
 // MARK: - Others
 
 extension HTTPHeaders {

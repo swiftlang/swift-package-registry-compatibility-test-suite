@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import _NIOConcurrency // async/await bridge
 @_exported import DatabaseMigrations
+import NIOCore // async/await bridge
 import PostgresKit
 
 extension DatabaseMigrations {

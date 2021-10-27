@@ -12,11 +12,11 @@
 
 import Foundation
 
-import _NIOConcurrency
 import AsyncHTTPClient
 import Atomics
 import Logging
 import NIO
+import NIOCore
 import NIOHTTP1
 
 public struct PackageRegistryClient {

@@ -14,3 +14,11 @@ The [`PackageRegistryCompatibilityTestSuite`](./Sources/PackageRegistryCompatibi
 The [`PackageRegistry`](./Sources/PackageRegistry) module is a demo server app that implements the
 [package registry service specification](https://github.com/apple/swift-package-manager/blob/main/Documentation/Registry.md) and can be
 deployed locally using Docker.
+
+### Testing
+
+Running the unit tests for the compatibility test suite requires a package registry server. The easiest way is to use docker:
+
+```
+docker-compose -f docker/docker-compose.yml -f docker/docker-compose.2004.55.yml run test
+```

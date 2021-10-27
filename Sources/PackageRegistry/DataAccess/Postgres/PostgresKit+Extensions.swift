@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import _NIOConcurrency
 import AsyncKit
+import NIOCore
 import PostgresKit
 import PostgresNIO
 import SQLKit
