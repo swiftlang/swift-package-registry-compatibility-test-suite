@@ -15,6 +15,7 @@ import Foundation
 import ArgumentParser
 import AsyncHTTPClient
 import NIO
+import NIOFoundationCompat
 import NIOHTTP1
 import PackageRegistryClient
 

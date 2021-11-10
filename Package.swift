@@ -32,7 +32,7 @@ let package = Package(
         .package(url: "https://github.com/vapor/postgres-kit.git", .upToNextMajor(from: "2.3.0")),
         .package(url: "https://github.com/swift-server/async-http-client.git", .upToNextMajor(from: "1.3.0")),
         .package(url: "https://github.com/apple/swift-atomics.git", .upToNextMajor(from: "1.0.2")),
-        .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "0.4.3")),
+        .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "1.0.2")),
         .package(url: "https://github.com/apple/swift-crypto.git", .upToNextMajor(from: "1.1.6")),
     ],
     targets: [
@@ -48,7 +48,7 @@ let package = Package(
 
         .target(name: "PackageRegistryModels", dependencies: []),
 
-        .executableTarget(name: "PackageRegistry",
+        .executableTarget(name: "PackageRegistryExample",
                           dependencies: [
                               "PostgresMigrations",
                               "PackageRegistryModels",
@@ -77,6 +77,7 @@ let package = Package(
         .executableTarget(name: "PackageRegistryTool", dependencies: [
             "PackageRegistryClient",
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            .product(name: "NIOFoundationCompat", package: "swift-nio"),
         ]),
 
         .executableTarget(name: "PackageRegistryCompatibilityTestSuite",
@@ -85,6 +86,7 @@ let package = Package(
                               .product(name: "ArgumentParser", package: "swift-argument-parser"),
                               .product(name: "AsyncHTTPClient", package: "async-http-client"),
                               .product(name: "NIOCore", package: "swift-nio"), // async/await bridge
+                              .product(name: "NIOFoundationCompat", package: "swift-nio"),
                               .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
                               .product(name: "Atomics", package: "swift-atomics"),
                           ],
@@ -98,6 +100,7 @@ let package = Package(
             "PackageRegistryModels",
             "PackageRegistryClient",
             .product(name: "Crypto", package: "swift-crypto"),
+            .product(name: "NIOFoundationCompat", package: "swift-nio"),
         ]),
 
         .testTarget(name: "PackageRegistryCompatibilityTestSuiteTests", dependencies: [

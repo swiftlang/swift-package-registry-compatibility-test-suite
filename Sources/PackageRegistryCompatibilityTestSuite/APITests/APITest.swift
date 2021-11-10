@@ -13,6 +13,7 @@
 import AsyncHTTPClient
 import NIO
 import NIOCore
+import NIOFoundationCompat
 import NIOHTTP1
 
 class APITest: @unchecked Sendable {
