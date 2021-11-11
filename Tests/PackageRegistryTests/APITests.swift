@@ -16,6 +16,7 @@ import XCTest
 import AsyncHTTPClient
 import Crypto
 import NIO
+import NIOFoundationCompat
 import NIOHTTP1
 import PackageRegistryClient
 import PackageRegistryModels

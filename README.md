@@ -11,7 +11,7 @@ The [`PackageRegistryCompatibilityTestSuite`](./Sources/PackageRegistryCompatibi
 
 ### Registry Service Reference Implementation
 
-The [`PackageRegistry`](./Sources/PackageRegistry) module is a demo server app that implements the
+The [`PackageRegistryExample`](./Sources/PackageRegistryExample) module is a demo server app that implements the
 [package registry service specification](https://github.com/apple/swift-package-manager/blob/main/Documentation/Registry.md) and can be
 deployed locally using Docker.
 
