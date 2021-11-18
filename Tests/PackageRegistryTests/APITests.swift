@@ -20,6 +20,7 @@ import NIOFoundationCompat
 import NIOHTTP1
 import PackageRegistryClient
 import PackageRegistryModels
+import TSCBasic
 
 final class BasicAPITests: XCTestCase {
     private var sourceArchives: [SourceArchiveMetadata]!
@@ -553,30 +554,40 @@ final class BasicAPITests: XCTestCase {
 
         // Case-insensitivity
         let urls = ["\(self.url!)/\(scope)/\(name)/1.0.0.zip", "\(self.url!)/\(scope)/\(name.uppercased())/1.0.0.zip"]
-        try urls.forEach {
-            try self.testHead(url: $0)
+        try urls.forEach { url in
+            try self.testHead(url: url)
 
-            let response = try self.client.httpClient.get(url: $0).wait()
-            XCTAssertEqual(.ok, response.status)
-            XCTAssertEqual("bytes", response.headers["Accept-Ranges"].first)
-            XCTAssertEqual("public, immutable", response.headers["Cache-Control"].first)
-            XCTAssertEqual("application/zip", response.headers["Content-Type"].first)
-            XCTAssertEqual("attachment; filename=\"\(name)-1.0.0.zip\"".lowercased(), response.headers["Content-Disposition"].first?.lowercased())
-            XCTAssertEqual("1", response.headers["Content-Version"].first)
+            try withTemporaryDirectory(removeTreeOnDeinit: true) { directoryPath -> Void in
+                let filename = "\(name)-1.0.0.zip"
+                let path = directoryPath.appending(component: filename)
+                let delegate = try FileDownloadDelegate(
+                    path: path.pathString,
+                    reportHead: { head in
+                        XCTAssertEqual(.ok, head.status)
+                        XCTAssertEqual("bytes", head.headers["Accept-Ranges"].first)
+                        XCTAssertEqual("public, immutable", head.headers["Cache-Control"].first)
+                        XCTAssertEqual("application/zip", head.headers["Content-Type"].first)
+                        XCTAssertEqual("attachment; filename=\"\(name)-1.0.0.zip\"".lowercased(), head.headers["Content-Disposition"].first?.lowercased())
+                        XCTAssertEqual("1", head.headers["Content-Version"].first)
 
-            guard let responseBody = response.body, responseBody.readableBytes > 0 else {
-                return XCTFail("Response body is empty")
+                        guard let digest = head.headers.parseDigestHeader() else {
+                            return XCTFail("Missing 'Digest' header")
+                        }
+                        XCTAssertEqual("sha-256", digest.algorithm)
+                    }
+                )
+                let request = try HTTPClient.Request(url: url, method: .GET)
+                let response = try self.client.httpClient.execute(request: request, delegate: delegate).wait()
+                XCTAssertNotNil(response.totalBytes)
+                XCTAssertEqual(response.totalBytes, response.receivedBytes)
+
+                let responseData = Data(try localFileSystem.readFileContents(path).contents)
+                XCTAssertEqual(response.receivedBytes, responseData.count)
+
+                let checksum = SHA256.hash(data: responseData).map { .init(format: "%02x", $0) }.joined()
+                let expectedChecksum = self.sourceArchives.first { $0.name == "swift-service-discovery" && $0.version == "1.0.0" }!.checksum
+                XCTAssertEqual(expectedChecksum, checksum)
             }
-            XCTAssertEqual(responseBody.readableBytes, response.headers["Content-Length"].first.map { Int(String($0)) ?? -1 })
-
-            guard let digest = response.parseDigestHeader() else {
-                return XCTFail("Missing 'Digest' header")
-            }
-            XCTAssertEqual("sha-256", digest.algorithm)
-
-            let responseData = Data(buffer: responseBody)
-            let checksum = Data(SHA256.hash(data: responseData)).base64EncodedString()
-            XCTAssertEqual(checksum, digest.checksum)
         }
     }
 
@@ -833,9 +844,11 @@ private extension HTTPClient.Response {
             return Link(relation: String(rel), url: String(url))
         }
     }
+}
 
+private extension HTTPHeaders {
     func parseDigestHeader() -> Digest? {
-        guard let digestHeader = self.headers["Digest"].first else {
+        guard let digestHeader = self["Digest"].first else {
             return nil
         }
 

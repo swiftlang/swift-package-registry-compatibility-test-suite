@@ -110,7 +110,7 @@ final class ListPackageReleasesTests: APITest {
             let releases = try self.parseResponseBody(response, for: &testCase)
             let newAccumulated = accumulated.merging(releases, uniquingKeysWith: { _, last in last })
 
-            let links = response.parseLinkHeader()
+            let links = response.headers.parseLinkHeader()
 
             // We are on the last page
             guard let nextPage = links.first(where: { $0.relation == "next" }) else {
@@ -182,7 +182,7 @@ final class ListPackageReleasesTests: APITest {
     private func checkLinkRelations(response: HTTPClient.Response, expectation: Configuration.PackageExpectation, for testCase: inout TestCase) {
         // 4.1 Server may optionally include "latest-version", "canonical", "alternate", etc. relations in the "Link" header
         if let linkRelations = expectation.linkRelations {
-            let links = response.parseLinkHeader()
+            let links = response.headers.parseLinkHeader()
             linkRelations.forEach { relation in
                 self.checkHasRelation(relation, in: links, for: &testCase)
             }

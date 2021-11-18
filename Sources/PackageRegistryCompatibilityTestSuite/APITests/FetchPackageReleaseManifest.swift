@@ -130,7 +130,7 @@ final class FetchPackageReleaseManifestTests: APITest {
 
         // 4.3 Server may include "Link" header with "alternate" relations referencing version-specific manifests
         if checkLinkAlternate {
-            let links = response.parseLinkHeader()
+            let links = response.headers.parseLinkHeader()
             self.checkHasRelation("alternate", in: links, for: &testCase)
         }
     }

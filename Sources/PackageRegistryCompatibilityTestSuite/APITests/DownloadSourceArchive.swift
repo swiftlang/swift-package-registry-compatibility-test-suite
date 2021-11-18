@@ -14,6 +14,7 @@ import Foundation
 
 import AsyncHTTPClient
 import Crypto
+import NIOHTTP1
 import TSCBasic
 
 final class DownloadSourceArchiveTests: APITest {
@@ -67,36 +68,62 @@ final class DownloadSourceArchiveTests: APITest {
             let url = "\(self.registryURL)/\(scope)/\(name)/\(version).zip"
 
             testCase.mark("HTTP request: GET \(url)")
-            let response = try await self.get(url: url, mediaType: .zip)
+            let (responseHead, progress, responseData) = try await withTemporaryDirectory(removeTreeOnDeinit: true) { directoryPath -> (HTTPResponseHead?, FileDownloadDelegate.Progress, Data) in
+                let lock = Lock()
+                var responseHead: HTTPResponseHead?
+
+                let filename = "\(name)-1.0.0.zip"
+                let path = directoryPath.appending(component: filename)
+                let delegate = try FileDownloadDelegate(
+                    path: path.pathString,
+                    reportHead: { head in
+                        lock.withLock {
+                            responseHead = head
+                        }
+                    }
+                )
+                let progress = try await self.get(url: url, mediaType: .zip, delegate: delegate)
+                let responseData = Data(try localFileSystem.readFileContents(path).contents)
+
+                return (responseHead, progress, responseData)
+            }
+
+            guard let responseHead = responseHead else {
+                throw TestError("Did not receive HTTP status and headers")
+            }
 
             // 4.4 Server should return 200 if package release archive is found
             testCase.mark("HTTP response status")
-            guard response.status == .ok else {
-                throw TestError("Expected HTTP status code 200 but got \(response.status.code)")
+            guard responseHead.status == .ok else {
+                throw TestError("Expected HTTP status code 200 but got \(responseHead.status.code)")
             }
 
             // 3.5 Server must set "Content-Type" and "Content-Version" headers
-            self.checkContentTypeHeader(response.headers, expected: .zip, for: &testCase)
-            self.checkContentVersionHeader(response.headers, for: &testCase)
+            self.checkContentTypeHeader(responseHead.headers, expected: .zip, for: &testCase)
+            self.checkContentVersionHeader(responseHead.headers, for: &testCase)
 
             // 4.4 Server may set "Content-Disposition" header
             let expectedFilename = "\(name)-\(version).zip"
-            self.checkContentDispositionHeader(response.headers, expectedFilename: expectedFilename,
+            self.checkContentDispositionHeader(responseHead.headers, expectedFilename: expectedFilename,
                                                isRequired: self.configuration.contentDispositionHeaderIsSet, for: &testCase)
 
-            testCase.mark("Response body")
-            guard let responseBody = response.body else {
-                throw TestError("Response body is empty")
-            }
-
             // 4.4 Server must set "Content-Length" header
-            self.checkContentLengthHeader(response.headers, responseBody: responseBody, isRequired: true, for: &testCase)
+            self.checkContentLengthHeader(responseHead.headers, responseBody: nil, isRequired: true, for: &testCase)
 
-            let responseData = Data(buffer: responseBody)
+            testCase.mark("Response stream")
+            guard let totalBytes = progress.totalBytes, totalBytes > 0 else {
+                throw TestError("Expected bytes should be greater than 0")
+            }
+            guard totalBytes == progress.receivedBytes else {
+                throw TestError("Expected to receive \(totalBytes) bytes but got \(progress.receivedBytes)")
+            }
+            guard responseData.count == progress.receivedBytes else {
+                throw TestError("Received \(progress.receivedBytes) bytes but saved \(responseData.count)")
+            }
 
             // 4.4 Server may set "Digest" header
             if self.configuration.digestHeaderIsSet {
-                if let digest = try response.parseDigestHeader(for: &testCase) {
+                if let digest = try responseHead.headers.parseDigestHeader(for: &testCase) {
                     testCase.mark("Digest response header")
                     switch digest.algorithm {
                     case .sha256:
@@ -115,7 +142,7 @@ final class DownloadSourceArchiveTests: APITest {
 
             // 4.4 Server may include "duplicate" relations in the "Link" header
             if fixture.hasDuplicateLinks {
-                let links = response.parseLinkHeader()
+                let links = responseHead.headers.parseLinkHeader()
                 self.checkHasRelation("duplicate", in: links, for: &testCase)
             }
         }
