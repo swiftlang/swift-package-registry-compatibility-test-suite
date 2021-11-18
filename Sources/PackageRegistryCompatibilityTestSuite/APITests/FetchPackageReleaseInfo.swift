@@ -115,7 +115,7 @@ final class FetchPackageReleaseInfoTests: APITest {
 
             // 4.2 Server may optionally include "latest-version", "successor-version", "predecessor-version", etc. relations in the "Link" header
             if let linkRelations = expectation.linkRelations {
-                let links = response.parseLinkHeader()
+                let links = response.headers.parseLinkHeader()
                 linkRelations.forEach { relation in
                     self.checkHasRelation(relation, in: links, for: &testCase)
                 }

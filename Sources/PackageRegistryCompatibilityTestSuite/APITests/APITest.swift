@@ -33,16 +33,28 @@ class APITest: @unchecked Sendable {
 
     func get(url: String, mediaType: MediaType) async throws -> HTTPClient.Response {
         do {
-            var headers = HTTPHeaders()
-            headers.setAuthorization(token: self.authToken)
-            // Client should set the "Accept" header
-            headers.replaceOrAdd(name: "Accept", value: "application/vnd.swift.registry.v\(self.apiVersion)+\(mediaType.rawValue)")
-
-            let request = try HTTPClient.Request(url: url, method: .GET, headers: headers)
+            let request = try HTTPClient.Request(url: url, method: .GET, headers: self.defaultRequestHeaders(mediaType: mediaType))
             return try await self.httpClient.execute(request: request).get()
         } catch {
             throw TestError("Request failed: \(error)")
         }
+    }
+
+    func get<Delegate: HTTPClientResponseDelegate>(url: String, mediaType: MediaType, delegate: Delegate) async throws -> Delegate.Response {
+        do {
+            let request = try HTTPClient.Request(url: url, method: .GET, headers: self.defaultRequestHeaders(mediaType: mediaType))
+            return try await self.httpClient.execute(request: request, delegate: delegate).futureResult.get()
+        } catch {
+            throw TestError("Request failed: \(error)")
+        }
+    }
+
+    private func defaultRequestHeaders(mediaType: MediaType) -> HTTPHeaders {
+        var headers = HTTPHeaders()
+        headers.setAuthorization(token: self.authToken)
+        // Client should set the "Accept" header
+        headers.replaceOrAdd(name: "Accept", value: "application/vnd.swift.registry.v\(self.apiVersion)+\(mediaType.rawValue)")
+        return headers
     }
 
     func checkContentVersionHeader(_ headers: HTTPHeaders, for testCase: inout TestCase) {
@@ -80,8 +92,9 @@ class APITest: @unchecked Sendable {
                 testCase.warning("\"Content-Length\" header should be set")
             }
         }
-        if let contentLengthHeader = contentLengthHeader, Int(contentLengthHeader) != responseBody?.readableBytes {
-            testCase.error("Content-Length header (\(contentLengthHeader)) does not match response body length (\(String(describing: responseBody?.readableBytes)))")
+
+        if let contentLengthHeader = contentLengthHeader, let responseBody = responseBody, Int(contentLengthHeader) != responseBody.readableBytes {
+            testCase.error("Content-Length header (\(contentLengthHeader)) does not match response body length (\(responseBody.readableBytes))")
         }
     }
 
@@ -174,9 +187,9 @@ extension HTTPHeaders {
     }
 }
 
-extension HTTPClient.Response {
+extension HTTPHeaders {
     func parseLinkHeader() -> [Link] {
-        self.headers["Link"].map {
+        self["Link"].map {
             $0.split(separator: ",").compactMap {
                 let parts = $0.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ";")
                 guard parts.count >= 2 else {
@@ -197,7 +210,7 @@ extension HTTPClient.Response {
 
     func parseDigestHeader(for testCase: inout TestCase) throws -> Digest? {
         testCase.mark("Parse \"Digest\" response header")
-        guard let digestHeader = self.headers["Digest"].first else {
+        guard let digestHeader = self["Digest"].first else {
             return nil
         }
 
