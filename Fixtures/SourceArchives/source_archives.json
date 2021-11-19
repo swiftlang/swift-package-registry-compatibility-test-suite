@@ -5,7 +5,7 @@
         "version": "1.0.0",
         "repositoryURL": "https://github.com/apple/swift-service-discovery",
         "commitHash": "fcf0363",
-        "checksum": "3f7539b222f3849e4e2e207400d2308a0fe1bd7a3bfafe06a321103144710fcd"
+        "checksum": "bc2a72b0345e06fc58071456640f7f622ef2751310e993c95c1f68345428615a"
     },
     {
         "scope": "apple",
@@ -13,7 +13,7 @@
         "version": "1.14.2",
         "repositoryURL": "https://github.com/apple/swift-nio",
         "commitHash": "8da5c5a",
-        "checksum": "43c63aad4ff999ca48aff499d879ebf68ce3afc7d69dcabe2ae2b1033646e983"
+        "checksum": "02bc0388134a4b0bbc1145f56a50c6e3d0ce8f4b456661bb156861db394e732b"
     },
     {
         "scope": "apple",
@@ -21,7 +21,7 @@
         "version": "2.29.0",
         "repositoryURL": "https://github.com/apple/swift-nio",
         "commitHash": "d161bf6",
-        "checksum": "f44ce7dcc5d4fadf95e9a95c0e4345d0ae25a203ec63460883e1ca771e0b347b"
+        "checksum": "24805ad6e2313cec79d92a8c805f6398aa7d46ea0c1aef03c76ce023a1fd5daf"
     },
     {
         "scope": "apple",
@@ -29,7 +29,7 @@
         "version": "2.30.0",
         "repositoryURL": "https://github.com/apple/swift-nio",
         "commitHash": "d79e333",
-        "checksum": "e9a5540d37bf4fa0b5d5a071b366eeca899b37ece4ce93b26cc14286d57fbcef"
+        "checksum": "cd5d6f66f60b88326174bcfcfe76f070edec66e38e50c15b6403eb6a8d2eccbc"
     },
     {
         "scope": "sunshinejr",
@@ -37,7 +37,7 @@
         "version": "4.0.0-beta.2",
         "repositoryURL": "https://github.com/sunshinejr/SwiftyUserDefaults",
         "commitHash": "9b8aa75",
-        "checksum": "917b7aa073e286ca20a24c2bbf786fd3bb52bf4bb984fa4b454f8db6641dcc1a"
+        "checksum": "7073446337b21ee9995b4fcf4f12b404989758175311fae123ce3cd91439d0a8"
     },
     {
         "scope": "sunshinejr",
@@ -45,6 +45,6 @@
         "version": "5.3.0",
         "repositoryURL": "https://github.com/sunshinejr/SwiftyUserDefaults",
         "commitHash": "f66bcd0",
-        "checksum": "ca3801b2185b72ae035eca003ab10a6cfc416e5b40820aa286d045523193846d"
+        "checksum": "ac43eaab1b2485070417265258155023c5e5865c9c1a7ade4ca869dd4a959110"
     }
 ]

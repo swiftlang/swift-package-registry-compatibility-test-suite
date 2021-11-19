@@ -112,6 +112,12 @@ struct CreatePackageReleaseController {
                         switch result {
                         case .success:
                             do {
+                                do {
+                                    try self.fileSystem.stripFirstLevel(of: packagePath)
+                                } catch {
+                                    throw PackageRegistry.APIError.unprocessableEntity("Invalid source archive: \(error)")
+                                }
+
                                 // Find manifests
                                 let manifests = try self.getManifests(packagePath)
                                 // Package.swift is required
