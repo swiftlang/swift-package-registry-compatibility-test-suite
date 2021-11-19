@@ -56,7 +56,7 @@ final class FetchPackageReleaseInfoCommandTests: XCTestCase {
                 packageReleases: [
                     .init(
                         packageRelease: PackageRelease(package: PackageIdentity(scope: scope, name: name), version: "1.14.2"),
-                        resources: [.sourceArchive(checksum: "43c63aad4ff999ca48aff499d879ebf68ce3afc7d69dcabe2ae2b1033646e983")],
+                        resources: [.sourceArchive(checksum: "02bc0388134a4b0bbc1145f56a50c6e3d0ce8f4b456661bb156861db394e732b")],
                         keyValues: [
                             "repositoryURL": "https://github.com/\(scope)/\(name)",
                             "commitHash": "8da5c5a",
@@ -65,7 +65,7 @@ final class FetchPackageReleaseInfoCommandTests: XCTestCase {
                     ),
                     .init(
                         packageRelease: PackageRelease(package: PackageIdentity(scope: scope, name: name), version: "2.29.0"),
-                        resources: [.sourceArchive(checksum: "f44ce7dcc5d4fadf95e9a95c0e4345d0ae25a203ec63460883e1ca771e0b347b")],
+                        resources: [.sourceArchive(checksum: "24805ad6e2313cec79d92a8c805f6398aa7d46ea0c1aef03c76ce023a1fd5daf")],
                         keyValues: [
                             "repositoryURL": "https://github.com/\(scope)/\(name)",
                             "commitHash": "d161bf6",
@@ -74,7 +74,7 @@ final class FetchPackageReleaseInfoCommandTests: XCTestCase {
                     ),
                     .init(
                         packageRelease: PackageRelease(package: PackageIdentity(scope: scope, name: name), version: "2.30.0"),
-                        resources: [.sourceArchive(checksum: "e9a5540d37bf4fa0b5d5a071b366eeca899b37ece4ce93b26cc14286d57fbcef")],
+                        resources: [.sourceArchive(checksum: "cd5d6f66f60b88326174bcfcfe76f070edec66e38e50c15b6403eb6a8d2eccbc")],
                         keyValues: [
                             "repositoryURL": "https://github.com/\(scope)/\(name)",
                             "commitHash": "d79e333",

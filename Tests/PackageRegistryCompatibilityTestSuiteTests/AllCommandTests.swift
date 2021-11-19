@@ -98,7 +98,7 @@ final class AllCommandTests: XCTestCase {
                 packageReleases: [
                     .init(
                         packageRelease: PackageRelease(package: PackageIdentity(scope: nioScope, name: nioName), version: "2.30.0"),
-                        resources: [.sourceArchive(checksum: "e9a5540d37bf4fa0b5d5a071b366eeca899b37ece4ce93b26cc14286d57fbcef")],
+                        resources: [.sourceArchive(checksum: "cd5d6f66f60b88326174bcfcfe76f070edec66e38e50c15b6403eb6a8d2eccbc")],
                         keyValues: [
                             "repositoryURL": "https://github.com/\(nioScope)/swift-nio",
                             "commitHash": "d79e333",
