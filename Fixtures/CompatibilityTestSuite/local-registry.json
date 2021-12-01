@@ -77,8 +77,7 @@
             }
         ],
         "contentLengthHeaderIsSet": true,
-        "contentDispositionHeaderIsSet": true,
-        "linkHeaderHasAlternateRelations": true
+        "contentDispositionHeaderIsSet": true
     },
     "downloadSourceArchive": {
         "sourceArchives": [

@@ -90,7 +90,7 @@ final class FetchPackageReleaseManifestTests: APITest {
         await TestCase(name: "Fetch Package.swift for package release \(scope).\(name)@\(version)") { testCase in
             let url = "\(self.registryURL)/\(scope)/\(name)/\(version)/Package.swift"
 
-            let checkLinkAlternate = self.configuration.linkHeaderHasAlternateRelations && fixture.swiftVersions != nil
+            let checkLinkAlternate = fixture.swiftVersions != nil
             try await self.fetchAndCheckResponse(url: url, packageRelease: fixture.packageRelease, checkLinkAlternate: checkLinkAlternate,
                                                  expectedFilename: "Package.swift", for: &testCase)
         }
@@ -149,10 +149,6 @@ extension FetchPackageReleaseManifestTests {
 
         /// If `true`, the registry sets the "Content-Disposition" response header.
         let contentDispositionHeaderIsSet: Bool
-
-        /// If `true`, the registry should include "alternate" relations in the "Link" response header when fetching the
-        /// unqualified manifest (i.e., `Package.swift`), if the release has version-specific manifests.
-        let linkHeaderHasAlternateRelations: Bool
 
         struct PackageReleaseFixture: Codable {
             /// Package scope and name and release version
