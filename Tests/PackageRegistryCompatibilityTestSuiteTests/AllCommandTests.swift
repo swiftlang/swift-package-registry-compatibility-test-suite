@@ -118,8 +118,7 @@ final class AllCommandTests: XCTestCase {
                 ],
                 unknownPackageReleases: [PackageRelease(package: PackageIdentity(scope: unknownScope, name: "unknown"), version: "1.0.0")],
                 contentLengthHeaderIsSet: true,
-                contentDispositionHeaderIsSet: true,
-                linkHeaderHasAlternateRelations: true
+                contentDispositionHeaderIsSet: true
             ),
             downloadSourceArchive: DownloadSourceArchiveTests.Configuration(
                 sourceArchives: [

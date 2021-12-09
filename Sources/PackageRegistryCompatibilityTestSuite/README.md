@@ -360,7 +360,9 @@ The test configuration is a `fetchPackageReleaseManifest` JSON object with the f
 - `unknownPackageReleases`: An array of "package release" JSON objects for package releases that do not exist in the registry. In other words, the server is expected to return HTTP status code `404` for these.
 - `contentLengthHeaderIsSet`: If `true`, the `Content-Length` HTTP response header must be set.
 - `contentDispositionHeaderIsSet`: If `true`, the `Content-Disposition` HTTP response header must be set.
-- `linkHeaderHasAlternateRelations`: If `true`, the registry should include `alternate` relation(s) in the `Link` HTTP response header when fetching the unqualified manifest (i.e., `Package.swift`) and if the release has version-specific manifests.
+
+The registry must include `alternate` relation(s) in the `Link` HTTP response header when fetching the 
+unqualified manifest (i.e., `Package.swift`) and if the release has version-specific manifests.
 
 ###### Sample configuration
 
@@ -384,8 +386,7 @@ The test configuration is a `fetchPackageReleaseManifest` JSON object with the f
             }
         ],
         "contentLengthHeaderIsSet": true,
-        "contentDispositionHeaderIsSet": true,
-        "linkHeaderHasAlternateRelations": true
+        "contentDispositionHeaderIsSet": true
     }
 }
 ```
@@ -398,7 +399,9 @@ configuration when `--generate-data` flag is set.
 The `fetchPackageReleaseManifest` object is also required:
 - `contentLengthHeaderIsSet`: If `true`, the `Content-Length` HTTP response header must be set.
 - `contentDispositionHeaderIsSet`: If `true`, the `Content-Disposition` HTTP response header must be set.
-- `linkHeaderHasAlternateRelations`: If `true`, the registry should include `alternate` relation(s) in the `Link` HTTP response header when fetching the unqualified manifest (i.e., `Package.swift`) and if the release has version-specific manifests.
+
+The registry must include `alternate` relation(s) in the `Link` HTTP response header when fetching the 
+unqualified manifest (i.e., `Package.swift`) and if the release has version-specific manifests.
 
 The tool will use these configurations to construct the `fetchPackageReleaseManifest` configuration described in the previous section for testing.
 
@@ -408,8 +411,7 @@ The tool will use these configurations to construct the `fetchPackageReleaseMani
 {
     "fetchPackageReleaseManifest": {
         "contentLengthHeaderIsSet": true,
-        "contentDispositionHeaderIsSet": true,
-        "linkHeaderHasAlternateRelations": true
+        "contentDispositionHeaderIsSet": true
     }
 }
 ```
@@ -421,7 +423,7 @@ For each package release in `packageReleases`:
 2. Response status code must be `200`. Response must include `Content-Type` (`text/x-swift`) and `Content-Version` headers.
 3. If `contentLengthHeaderIsSet == true`, the response must include `Content-Length` header and response body length must match.
 4. If `contentDispositionHeaderIsSet == true`, the response must include `Content-Disposition` header and its value must contain `attachment; filename={filename}`.
-5. If `swiftVersions` is specified and `linkHeaderHasAlternateRelations == true`, then the `Link` response header must include `alternate` relation(s).
+5. If `swiftVersions` is specified, then the `Link` response header must include `alternate` relation(s).
 6. Response body must be non-empty.
 7. Repeat steps 1-6 with flipcased `scope` and `name` in the request URL to test for case-insensitivity.
 8. For each Swift version in `swiftVersions`:

@@ -216,8 +216,7 @@ struct TestConfigurationGenerator {
                 .init(package: $0, version: "1.0.0")
             }),
             contentLengthHeaderIsSet: configuration.contentLengthHeaderIsSet,
-            contentDispositionHeaderIsSet: configuration.contentDispositionHeaderIsSet,
-            linkHeaderHasAlternateRelations: configuration.linkHeaderHasAlternateRelations
+            contentDispositionHeaderIsSet: configuration.contentDispositionHeaderIsSet
         )
     }
 
@@ -423,9 +422,6 @@ extension TestConfigurationGenerator {
 
             /// See `FetchPackageReleaseManifestTests.Configuration.contentDispositionHeaderIsSet`
             let contentDispositionHeaderIsSet: Bool
-
-            /// See `FetchPackageReleaseManifestTests.Configuration.linkHeaderHasAlternateRelations`
-            let linkHeaderHasAlternateRelations: Bool
         }
 
         struct DownloadSourceArchive: Codable {

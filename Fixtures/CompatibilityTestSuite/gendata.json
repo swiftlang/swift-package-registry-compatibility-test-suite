@@ -41,8 +41,7 @@
     },
     "fetchPackageReleaseManifest": {
         "contentLengthHeaderIsSet": true,
-        "contentDispositionHeaderIsSet": true,
-        "linkHeaderHasAlternateRelations": true
+        "contentDispositionHeaderIsSet": true
     },
     "downloadSourceArchive": {
         "contentDispositionHeaderIsSet": true,
