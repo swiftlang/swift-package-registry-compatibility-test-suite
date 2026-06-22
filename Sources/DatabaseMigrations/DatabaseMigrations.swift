@@ -18,7 +18,7 @@ import Logging
 /// It defines the `DatabaseMigrations.Handler` protocol which concrete database migrations libraries implement.
 /// It also provides a generic logical implementation for the sequence of operations in typical database migrations.
 ///
-/// - note: This library designed to be used by implementations of the DatabaseMigrations API, not end-users.
+/// - note: This library is designed to be used by implementations of the DatabaseMigrations API, not end-users.
 ///
 /// - Authors:
 ///  Tomer Doron (tomer@apple.com)
@@ -26,12 +26,12 @@ import Logging
 public enum DatabaseMigrations {
     public typealias Handler = DatabaseMigrationsHandler
 
-    /// Applies the  `migrations` on the `eventLoopGroup` using `handler`.
+    /// Applies the `migrations` on the `eventLoopGroup` using `handler`.
     ///
-    /// - note: This method is designed to be called by implmentations of the DatabaseMigrations API.
+    /// - note: This method is designed to be called by implementations of the DatabaseMigrations API.
     ///
     /// - parameters:
-    ///    - handler: `Handler` to performs the migrations.
+    ///    - handler: `Handler` to perform the migrations.
     ///    - migrations: collection of `DatabaseMigrations.Entry`.
     ///    - to: maximum version of migrations to run.
     public static func apply(handler: Handler, migrations: [Entry], to version: UInt32 = UInt32.max) async throws -> Int {
@@ -147,10 +147,10 @@ public enum DatabaseMigrations {
 /// retain a list of previously applied versions which are used to compute
 /// the next version to apply.
 public protocol DatabaseMigrationsHandler {
-    /// Does the migration need bootstrapping? For example, doe the migrations metadata table exist?
+    /// Does the migration need bootstrapping? For example, does the migrations metadata table exist?
     func needsBootstrapping() async throws -> Bool
 
-    /// Bootstraps the migration. For example create the migrations metadata table.
+    /// Bootstraps the migration. For example, create the migrations metadata table.
     func bootstrap() async throws
 
     /// Returns the list of existing migration versions.
